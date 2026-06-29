@@ -1,20 +1,24 @@
 # Research Tree — Remaining Work
 
-> Items are roughly ordered by priority/impact.
-
 ---
+
+## Graph interactions
+
+- [ ] **Delete items from graph** — Right-click node context menu to delete an item (with undo/confirm)
+- [ ] **Branch/spawn from graph node** — Right-click → spawn a new item linked to the current one
+- [ ] **Draw connections between nodes** — Click two nodes to create an edge with a relationship label
+- [ ] **Multi-select** — Shift+click or Ctrl+click to select multiple nodes for batch operations (delete, cluster, connect)
+- [ ] **Cluster selected nodes** — Group selected items into a visual cluster (tag-based or explicit grouping)
 
 ## Short-term
 
 - [ ] **File path management UI** — Allow users to set/edit `file_path` on resources from the UI (file picker dialog)
-- [ ] **Graph node context menu** — Right-click on graph nodes (subject + resource) to spawn/delete from the graph itself, not just the PDF
 - [ ] **Progress aggregation** — Compute aggregate progress for a subject based on weighted average of its resources
-- [ ] **Import/export** — JSON dump/load of the full research tree (subjects, resources, edges, bookmarks, tags)
+- [ ] **Import/export** — JSON dump/load of the full research tree (items, edges, bookmarks, tags)
 
 ## Medium-term
 
-- [ ] **Subject-edge visualization** — Show subject-to-subject relationships on the graph (parent-child edges currently work; show spawn source)
-- [ ] **Filter by tags** — Filter the subject/resource tree by tags
+- [ ] **Filter by tags** — Filter the item graph by tags
 - [ ] **Resource type icons** — Different icons/colors for article, book, video, repo, forum, etc.
 - [ ] **Edge labels on graph** — Show relationship labels on resource graph edges
 - [ ] **Full-text search across bookmarks** — Include bookmark quotes in search results
@@ -25,7 +29,6 @@
 - [ ] **Drag-and-drop PDF import** — Drop a PDF onto the app to create a resource automatically
 - [ ] **Page-level progress tracking** — Track which pages you've read within a PDF
 - [ ] **Citation export** — Export a bibliography from selected resources
-- [ ] **Graph node collapse/expand** — Collapse subject branches in the D3.js graph
 - [ ] **Auto-tagging** — Suggest tags based on resource content
 - [ ] **Sync** — Cloud sync or multi-machine support
 - [ ] **Mobile-friendly** — Responsive layout for tablets
