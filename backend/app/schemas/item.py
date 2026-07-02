@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class ItemCreate(BaseModel):
@@ -43,5 +43,20 @@ class ItemRead(BaseModel):
     tags: list[str]
     created_at: datetime
     updated_at: datetime
+
+    @field_validator("tags", mode="before")
+    @classmethod
+    def normalize_tags(cls, value):
+        if value is None:
+            return []
+        normalized: list[str] = []
+        for tag in value:
+            if isinstance(tag, str):
+                normalized.append(tag)
+            else:
+                name = getattr(tag, "name", None)
+                if isinstance(name, str):
+                    normalized.append(name)
+        return normalized
 
     model_config = {"from_attributes": True}

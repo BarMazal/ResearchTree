@@ -9,6 +9,7 @@ class BookmarkCreate(BaseModel):
     chapter: str | None = None
     quote: str | None = None
     note: str | None = None
+    spawned_item_id: str | None = None
 
 
 class BookmarkRead(BaseModel):
@@ -18,6 +19,7 @@ class BookmarkRead(BaseModel):
     chapter: str | None
     quote: str | None
     note: str | None
+    spawned_item_id: str | None
     created_at: datetime
 
     model_config = {"from_attributes": True}

@@ -31,6 +31,6 @@ class Item(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     tags = relationship("Tag", secondary="item_tags", back_populates="items")
-    bookmarks = relationship("Bookmark", back_populates="item", cascade="all, delete-orphan")
-    children = relationship("Item", back_populates="parent", cascade="all, delete-orphan")
-    parent = relationship("Item", back_populates="children", remote_side=[id])
+    bookmarks = relationship("Bookmark", back_populates="item", cascade="all, delete-orphan", foreign_keys="[Bookmark.item_id]")
+    children = relationship("Item", back_populates="parent", foreign_keys="[Item.parent_item_id]")
+    parent = relationship("Item", back_populates="children", remote_side=[id], foreign_keys="[Item.parent_item_id]")

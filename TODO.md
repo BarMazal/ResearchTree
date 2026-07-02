@@ -41,3 +41,10 @@
 - [ ] **Database migrations** — Alembic setup for schema changes
 - [ ] **Testing** — Unit tests for API endpoints
 - [ ] **Accessibility** — Keyboard navigation, ARIA labels
+
+
+If you want, I can next add:
+
+
+A grid or ruled-paper background for equations and flow sketches.
+True formula editing for latex items with a live source + preview split.

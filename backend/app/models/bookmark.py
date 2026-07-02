@@ -16,6 +16,7 @@ class Bookmark(Base):
     chapter: Mapped[str | None] = mapped_column(String(500), nullable=True)
     quote: Mapped[str | None] = mapped_column(Text, nullable=True)
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    spawned_item_id: Mapped[str | None] = mapped_column(ForeignKey("items.id", ondelete="SET NULL"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
 
-    item = relationship("Item", back_populates="bookmarks")
+    item = relationship("Item", back_populates="bookmarks", foreign_keys=[item_id])

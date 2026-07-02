@@ -1,20 +1,30 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 
 type Props = {
   onSubmit: (data: { title: string; type: string; file_path?: string; source_url?: string }) => void;
   onClose: () => void;
+  initialType?: string;
+  initialTitle?: string;
 };
 
-const ITEM_TYPES = ["pdf", "article", "note", "video", "link", "repo", "idea"];
+const ITEM_TYPES = ["pdf", "article", "note", "video", "link", "repo", "idea", "scratch-pad", "latex"];
 
-export function AddItemDialog({ onSubmit, onClose }: Props) {
-  const [title, setTitle] = useState("");
-  const [type, setType] = useState("pdf");
+export function AddItemDialog({ onSubmit, onClose, initialType = "pdf", initialTitle = "" }: Props) {
+  const [title, setTitle] = useState(initialTitle);
+  const [type, setType] = useState(initialType);
   const [filePath, setFilePath] = useState("");
   const [sourceUrl, setSourceUrl] = useState("");
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setType(initialType);
+  }, [initialType]);
+
+  useEffect(() => {
+    setTitle(initialTitle);
+  }, [initialTitle]);
 
   const handleBrowse = () => {
     setUploadError("");

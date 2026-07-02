@@ -14,6 +14,11 @@ def list_bookmarks(item_id: str, db: Session = Depends(get_db)):
     return db.query(Bookmark).filter(Bookmark.item_id == item_id).order_by(Bookmark.created_at.desc()).all()
 
 
+@router.get("/origin/{spawned_item_id}", response_model=BookmarkRead | None)
+def get_origin_bookmark(spawned_item_id: str, db: Session = Depends(get_db)):
+    return db.query(Bookmark).filter(Bookmark.spawned_item_id == spawned_item_id).first()
+
+
 @router.post("", response_model=BookmarkRead, status_code=201)
 def create_bookmark(body: BookmarkCreate, db: Session = Depends(get_db)):
     bookmark = Bookmark(**body.model_dump())

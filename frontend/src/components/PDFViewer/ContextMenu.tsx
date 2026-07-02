@@ -30,7 +30,7 @@ export function ContextMenu({ x, y, selectedText, onAction, onClose }: Props) {
   const items = [
     { label: "Bookmark selection", type: "bookmark" as const, desc: "Save quote + page + note" },
     { label: "Spawn note", type: "spawn_note" as const, desc: "New note linked to this" },
-    { label: "Spawn branch", type: "spawn_branch" as const, desc: "New item branching from this" },
+    { label: "Spawn child", type: "spawn_branch" as const, desc: "New child item of this" },
     { label: "Mark progress here", type: "mark_progress" as const, desc: "Set progress to current page" },
   ];
 
