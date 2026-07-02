@@ -220,6 +220,15 @@ export function APDF({
     setShowRenderingSubmenu(false);
   }, [currentPage]);
 
+  // Scroll the selected page to the top when a thumbnail is clicked
+  const handleThumbnailClick = useCallback((page: number) => {
+    onPageChange(page);
+    const node = pagesRef.current.get(page);
+    if (node) {
+      node.scrollIntoView({ block: "start" });
+    }
+  }, [onPageChange]);
+
   useEffect(() => {
     if (!menu) return;
     const onMouseDown = (event: MouseEvent) => {
@@ -276,12 +285,7 @@ export function APDF({
     return () => scroller.removeEventListener("scroll", onScroll);
   }, [currentPage, onPageChange, renderingMode]);
 
-  useEffect(() => {
-    if (renderingMode === "single") return;
-    const node = pagesRef.current.get(currentPage);
-    if (!node) return;
-    node.scrollIntoView({ block: "center" });
-  }, [currentPage, renderingMode]);
+
 
   useEffect(() => {
     const container = scrollRef.current;
@@ -390,15 +394,15 @@ export function APDF({
           <aside className="w-36 shrink-0 border-r border-gray-700 overflow-y-auto p-2 bg-gray-900/60">
             <div className="text-[10px] uppercase tracking-wider text-gray-500 mb-2">Pages</div>
             <Document file={fileUrl} loading={null} className="flex flex-col gap-2">
-              {pages.map((p) => (
-                <LazyThumbnail
-                  key={`thumb-${p}`}
-                  pageNumber={p}
-                  width={112}
-                  isSelected={currentPage === p}
-                  onClick={() => onPageChange(p)}
-                />
-              ))}
+                {pages.map((p) => (
+                  <LazyThumbnail
+                    key={`thumb-${p}`}
+                    pageNumber={p}
+                    width={112}
+                    isSelected={currentPage === p}
+                    onClick={() => handleThumbnailClick(p)}
+                  />
+                ))}
             </Document>
           </aside>
         )}
