@@ -182,6 +182,34 @@ export function APDF({
     [onTotalPages]
   );
 
+  const hasRestoredRef = useRef<string | null>(null);
+
+  // Restore scroll position and current page after document is loaded (once per file)
+  useEffect(() => {
+    if (!fileUrl || !numPages) return;
+    if (hasRestoredRef.current === fileUrl) return;
+    hasRestoredRef.current = fileUrl;
+
+    const savedScroll = localStorage.getItem(`apdf-scroll-${fileUrl}`);
+    const savedPage = localStorage.getItem(`apdf-page-${fileUrl}`);
+    if (scrollRef.current) {
+      isProgrammaticScroll.current = true;
+      if (savedScroll) {
+        scrollRef.current.scrollTop = Number(savedScroll);
+      }
+      if (savedPage) {
+        const pageNum = Number(savedPage);
+        if (!isNaN(pageNum) && pageNum !== currentPage) {
+          onPageChange(pageNum);
+        }
+      }
+      requestAnimationFrame(() => {
+        isProgrammaticScroll.current = false;
+        isInitialLoad.current = false;
+      });
+    }
+  }, [fileUrl, numPages]);
+
   useEffect(() => {
     const el = rootRef.current;
     if (!el) return;
@@ -220,14 +248,22 @@ export function APDF({
     setShowRenderingSubmenu(false);
   }, [currentPage]);
 
+  // Ref to indicate a programmatic scroll (thumbnail, bookmark or persistent restore)
+  const isProgrammaticScroll = useRef(false);
+  // Flag to suppress scroll‑page detection during initial load
+  const isInitialLoad = useRef(true);
+  // Keep track of the previous page to decide scroll direction
+  const prevPageRef = useRef<number>(currentPage);
+  // Tracks the last page detected by the wheel-scroll handler, so we can
+  // distinguish wheel-driven page changes (no forced scroll) from external
+  // ones (bookmark, nav button — must scroll to page).
+  const lastScrollDetectedPage = useRef<number>(currentPage);
   // Scroll the selected page to the top when a thumbnail is clicked
   const handleThumbnailClick = useCallback((page: number) => {
     onPageChange(page);
-    const node = pagesRef.current.get(page);
-    if (node) {
-      node.scrollIntoView({ block: "start" });
-    }
   }, [onPageChange]);
+
+
 
   useEffect(() => {
     if (!menu) return;
@@ -252,17 +288,23 @@ export function APDF({
     if (!scroller) return;
 
     let ticking = false;
+    let saveTimer: ReturnType<typeof setTimeout> | null = null;
+
     const updateCurrentPage = () => {
-      const scrollerRect = scroller.getBoundingClientRect();
-      const centerY = scrollerRect.top + scrollerRect.height / 2;
+      // Skip detection while we are still initializing from persisted state
+      if (isProgrammaticScroll.current || isInitialLoad.current) {
+        ticking = false;
+        return;
+      }
+      // Determine the page whose top edge is closest to the current scroll position
       let bestPage = currentPage;
       let bestDistance = Number.POSITIVE_INFINITY;
-
+      const scrollTop = scroller.scrollTop;
       for (const [page, node] of pagesRef.current.entries()) {
         const rect = node.getBoundingClientRect();
-        if (rect.height <= 0) continue;
-        const pageCenter = rect.top + rect.height / 2;
-        const distance = Math.abs(pageCenter - centerY);
+        const containerRect = scroller.getBoundingClientRect();
+        const nodeTop = rect.top - containerRect.top + scrollTop;
+        const distance = Math.abs(nodeTop - scrollTop);
         if (distance < bestDistance) {
           bestDistance = distance;
           bestPage = page;
@@ -270,8 +312,20 @@ export function APDF({
       }
 
       if (bestPage !== currentPage) {
+        prevPageRef.current = currentPage;
+        lastScrollDetectedPage.current = bestPage;
         onPageChange(bestPage);
       }
+
+      // Debounced save of scroll position to localStorage
+      if (fileUrl) {
+        if (saveTimer) clearTimeout(saveTimer);
+        saveTimer = setTimeout(() => {
+          localStorage.setItem(`apdf-scroll-${fileUrl}`, String(scroller.scrollTop));
+          localStorage.setItem(`apdf-page-${fileUrl}`, String(bestPage));
+        }, 300);
+      }
+
       ticking = false;
     };
 
@@ -282,8 +336,36 @@ export function APDF({
     };
 
     scroller.addEventListener("scroll", onScroll, { passive: true });
-    return () => scroller.removeEventListener("scroll", onScroll);
-  }, [currentPage, onPageChange, renderingMode]);
+    return () => {
+      scroller.removeEventListener("scroll", onScroll);
+      if (saveTimer) clearTimeout(saveTimer);
+    };
+  }, [currentPage, onPageChange, renderingMode, fileUrl]);
+
+  // Align the viewport when the page changes from an external source (bookmark,
+  // thumbnail click, nav buttons).  Wheel-driven page changes already have the
+  // viewport in the right place, so we skip them.
+  useEffect(() => {
+    if (isInitialLoad.current) return;
+    // If the scroll handler set this page, the viewport is already there.
+    if (lastScrollDetectedPage.current === currentPage) return;
+    const container = scrollRef.current;
+    const node = pagesRef.current.get(currentPage);
+    if (!container || !node) return;
+
+    isProgrammaticScroll.current = true;
+    container.scrollTop = node.offsetTop;
+    // Persist this as the saved position
+    if (fileUrl) {
+      localStorage.setItem(`apdf-scroll-${fileUrl}`, String(container.scrollTop));
+      localStorage.setItem(`apdf-page-${fileUrl}`, String(currentPage));
+    }
+    requestAnimationFrame(() => {
+      isProgrammaticScroll.current = false;
+      prevPageRef.current = currentPage;
+    });
+  }, [currentPage, fileUrl]);
+
 
 
 
@@ -490,7 +572,25 @@ export function APDF({
               : "No text selected"}
           </div>
 
-          {renderActionButton("Bookmark selection", { type: "bookmark" })}
+          <button
+            type="button"
+            disabled={!Boolean(menu?.selectedText)}
+            className={`w-full text-left px-3 py-2 text-sm ${Boolean(menu?.selectedText) ? "hover:bg-gray-700 text-gray-100" : "text-gray-500 cursor-not-allowed"}`}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              if (!menu || !menu.selectedText) return;
+              // Programmatic bookmark navigation
+              isProgrammaticScroll.current = true;
+              onSelectionAction({ type: "bookmark" }, menu.selectedText, menu.page);
+              requestAnimationFrame(() => {
+                isProgrammaticScroll.current = false;
+              });
+              setMenu(null);
+              setShowRenderingSubmenu(false);
+            }}
+          >
+            Bookmark selection
+          </button>
           {renderActionButton("Spawn note", { type: "spawn_note" })}
           {renderActionButton("Spawn child", { type: "spawn_branch" })}
           {renderActionButton("Mark progress here", { type: "mark_progress" })}
