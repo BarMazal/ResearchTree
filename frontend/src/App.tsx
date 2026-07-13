@@ -61,6 +61,18 @@ function App() {
   const [bookmarkRefreshNonce, setBookmarkRefreshNonce] = useState(0);
 
   const [detailExpanded, setDetailExpanded] = useState(true);
+  const [detailDock, setDetailDock] = useState<"bottom" | "right">(() => {
+    const saved = localStorage.getItem("detail-dock");
+    return (saved === "right" || saved === "bottom") ? saved : "bottom";
+  });
+  const [detailHeight, setDetailHeight] = useState(() => {
+    const saved = localStorage.getItem("detail-height");
+    return saved ? parseInt(saved, 10) : 256;
+  });
+  const [detailWidth, setDetailWidth] = useState(() => {
+    const saved = localStorage.getItem("detail-width");
+    return saved ? parseInt(saved, 10) : 380;
+  });
 
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [addInitialType, setAddInitialType] = useState("pdf");
@@ -141,6 +153,18 @@ function App() {
       console.error("Failed to save collapsedIds state:", e);
     }
   }, [collapsedIds]);
+
+  useEffect(() => {
+    localStorage.setItem("detail-dock", detailDock);
+  }, [detailDock]);
+
+  useEffect(() => {
+    localStorage.setItem("detail-height", String(detailHeight));
+  }, [detailHeight]);
+
+  useEffect(() => {
+    localStorage.setItem("detail-width", String(detailWidth));
+  }, [detailWidth]);
 
   const selectedItem = items.find((r) => r.id === selectedItemId) ?? null;
   const hasReader = selectedItem && (selectedItem.file_path || selectedItem.source_url);
@@ -1064,53 +1088,142 @@ function App() {
           )}
 
           {showReader && (
-            <div className="flex-1 flex flex-col min-w-0">
-              {isScratchPad && selectedItem ? (
-                <ScratchPad
-                  resource={selectedItem}
-                  onUpdate={updateItem}
-                />
-              ) : isLatex && selectedItem ? (
-                <LatexView resource={selectedItem} />
-              ) : useAPdfjs && selectedItem ? (
-                <APDF
-                  fileUrl={pdfUrl}
-                  currentPage={pdfPage}
-                  onPageChange={setPdfPage}
-                  onTotalPages={setPdfTotalPages}
-                  onSelectionAction={handleAPdfSelectionAction}
-                  highlightText={pdfHighlightText}
-                />
-              ) : usePdfjs && selectedItem ? (
-                <div className="flex-1 min-h-0 flex flex-col">
-                  <PDFContainer
+            <div className={`flex-1 flex min-w-0 ${detailDock === "right" && selectedItem && (usePdfjs || hasReader) ? "flex-row" : "flex-col"}`}>
+              <div className="flex-1 min-h-0 flex flex-col min-w-0 relative">
+                {isScratchPad && selectedItem ? (
+                  <ScratchPad
+                    resource={selectedItem}
+                    onUpdate={updateItem}
+                  />
+                ) : isLatex && selectedItem ? (
+                  <LatexView resource={selectedItem} />
+                ) : useAPdfjs && selectedItem ? (
+                  <APDF
                     fileUrl={pdfUrl}
                     currentPage={pdfPage}
                     onPageChange={setPdfPage}
                     onTotalPages={setPdfTotalPages}
-                    onTextSelect={handleTextSelect}
+                    onSelectionAction={handleAPdfSelectionAction}
+                    highlightText={pdfHighlightText}
                   />
-                </div>
-              ) : hasReader && selectedItem ? (
-                <div className="flex-1 min-h-0 flex flex-col">
-                  <ReadPane
-                    fileUrl={pdfUrl}
-                    sourceUrl={selectedItem.source_url}
-                    title={selectedItem.title}
-                  />
-                </div>
-              ) : null}
+                ) : usePdfjs && selectedItem ? (
+                  <div className="flex-1 min-h-0 flex flex-col">
+                    <PDFContainer
+                      fileUrl={pdfUrl}
+                      currentPage={pdfPage}
+                      onPageChange={setPdfPage}
+                      onTotalPages={setPdfTotalPages}
+                      onTextSelect={handleTextSelect}
+                    />
+                  </div>
+                ) : hasReader && selectedItem ? (
+                  <div className="flex-1 min-h-0 flex flex-col">
+                    <ReadPane
+                      fileUrl={pdfUrl}
+                      sourceUrl={selectedItem.source_url}
+                      title={selectedItem.title}
+                    />
+                  </div>
+                ) : null}
 
-              {selectedItem && (usePdfjs || hasReader) && (
-                <div className="shrink-0 border-t border-gray-700">
-                  <button
-                    onClick={() => setDetailExpanded((d) => !d)}
-                    className="w-full flex items-center gap-2 px-4 py-1.5 text-xs text-gray-400 hover:text-gray-200 bg-gray-800/50"
+                {/* Bottom Docked Details Panel */}
+                {selectedItem && (usePdfjs || hasReader) && detailDock === "bottom" && (
+                  <div className="shrink-0 border-t border-gray-700 bg-gray-850 flex flex-col">
+                    {detailExpanded && (
+                      <div
+                        className="h-1 bg-gray-700 hover:bg-blue-500 cursor-row-resize shrink-0 transition-colors touch-none"
+                        onPointerDown={(e) => {
+                          e.preventDefault();
+                          const startY = e.clientY;
+                          const startHeight = detailHeight;
+                          const handlePointerMove = (moveEvent: PointerEvent) => {
+                            const newHeight = Math.max(120, Math.min(600, startHeight - (moveEvent.clientY - startY)));
+                            setDetailHeight(newHeight);
+                          };
+                          const handlePointerUp = () => {
+                            document.removeEventListener("pointermove", handlePointerMove);
+                            document.removeEventListener("pointerup", handlePointerUp);
+                          };
+                          document.addEventListener("pointermove", handlePointerMove);
+                          document.addEventListener("pointerup", handlePointerUp);
+                        }}
+                      />
+                    )}
+                    <div className="flex items-center justify-between bg-gray-800/50 border-b border-gray-700 shrink-0">
+                      <button
+                        onClick={() => setDetailExpanded((d) => !d)}
+                        className="flex-1 flex items-center gap-2 px-4 py-1.5 text-xs text-gray-400 hover:text-gray-200"
+                      >
+                        {detailExpanded ? "▼" : "▶"} Details
+                      </button>
+                      <button
+                        onClick={() => setDetailDock("right")}
+                        className="px-3 py-1.5 text-xs text-gray-400 hover:text-gray-200 border-l border-gray-700"
+                        title="Dock to Side"
+                      >
+                        Dock to Side →
+                      </button>
+                    </div>
+                    {detailExpanded && (
+                      <div style={{ height: `${detailHeight}px` }} className="overflow-y-auto">
+                        <ResourceDetail
+                          resource={selectedItem}
+                          onUpdate={updateItem}
+                          onClose={() => selectItem(null)}
+                          onSelectParent={handleSelectParent}
+                        />
+                        <div className="px-4 pb-4">
+                          <BookmarkList
+                            itemId={selectedItem.id}
+                            refreshNonce={bookmarkRefreshNonce}
+                            onSelectSpawned={selectAndReveal}
+                            onSelectBookmark={handleSelectBookmark}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Right Docked Details Panel */}
+              {selectedItem && (usePdfjs || hasReader) && detailDock === "right" && (
+                <>
+                  <div
+                    className="w-1 bg-gray-700 hover:bg-blue-500 cursor-col-resize shrink-0 transition-colors touch-none"
+                    onPointerDown={(e) => {
+                      e.preventDefault();
+                      const startX = e.clientX;
+                      const startWidth = detailWidth;
+                      const handlePointerMove = (moveEvent: PointerEvent) => {
+                        const newWidth = Math.max(250, Math.min(800, startWidth - (moveEvent.clientX - startX)));
+                        setDetailWidth(newWidth);
+                      };
+                      const handlePointerUp = () => {
+                        document.removeEventListener("pointermove", handlePointerMove);
+                        document.removeEventListener("pointerup", handlePointerUp);
+                      };
+                      document.addEventListener("pointermove", handlePointerMove);
+                      document.addEventListener("pointerup", handlePointerUp);
+                    }}
+                  />
+                  <div
+                    style={{ width: `${detailWidth}px` }}
+                    className="shrink-0 border-l border-gray-700 bg-gray-850 flex flex-col overflow-hidden"
                   >
-                    {detailExpanded ? "\u25BC" : "\u25B6"} Details
-                  </button>
-                  {detailExpanded && (
-                    <div className="overflow-y-auto max-h-64">
+                    <div className="flex items-center justify-between bg-gray-800/50 border-b border-gray-700 shrink-0">
+                      <div className="px-4 py-1.5 text-xs text-gray-400 font-semibold">
+                        Details
+                      </div>
+                      <button
+                        onClick={() => setDetailDock("bottom")}
+                        className="px-3 py-1.5 text-xs text-gray-400 hover:text-gray-200 border-l border-gray-700"
+                        title="Dock to Bottom"
+                      >
+                        Dock to Bottom ↓
+                      </button>
+                    </div>
+                    <div className="flex-1 overflow-y-auto">
                       <ResourceDetail
                         resource={selectedItem}
                         onUpdate={updateItem}
@@ -1126,8 +1239,8 @@ function App() {
                         />
                       </div>
                     </div>
-                  )}
-                </div>
+                  </div>
+                </>
               )}
 
               {!usePdfjs && !hasReader && showDetail && (

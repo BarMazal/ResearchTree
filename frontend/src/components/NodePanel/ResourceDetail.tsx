@@ -158,7 +158,7 @@ export function ResourceDetail({ resource, onUpdate, onClose, onSelectParent }: 
           onChange={(e) => setSummary(e.target.value)}
           onBlur={save}
           rows={4}
-          className="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm resize-none focus:outline-none focus:border-blue-500"
+          className="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm resize-y focus:outline-none focus:border-blue-500"
         />
       </div>
 
