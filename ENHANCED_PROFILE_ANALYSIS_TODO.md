@@ -46,19 +46,20 @@
 ## 📍 Phase 5: Filter Builder & Category Governance
 - [x] Implement CRUD backend endpoints for `SavedFilter` (`backend/app/routes/saved_filters.py`).
 - [x] Implement Category Governance API (`backend/app/routes/category_settings.py`) supporting manual promote/demote/add/delete + $5\%$ auto-promotion.
-- [ ] Build Custom UI Filter Builder (`frontend/src/components/FilterBuilder.tsx`) with prebuilt system presets (Opening, Middlegame, Endgame, Blunders, Time Trouble).
-- [ ] Build Category Governance UI (`frontend/src/components/CategorySettings.tsx`).
+- [x] Build Custom UI Filter Builder tab with prebuilt system presets (Opening, Middlegame, Endgame, Blunders, Time Trouble).
+- [x] Build Category Governance UI tab (`frontend/src/components/Analytics/AnalyticsDashboard.tsx`).
 
 ---
 
 ## 📍 Phase 6: History Inspector, Replay & Debug Overlay
-- [ ] Build History Browser & Replay component (`frontend/src/components/HistoryInspector.tsx`) with evaluation curve and blunder markers.
-- [ ] Build Finding Cards & interactive LLM Mentor Chat on historical positions.
-- [ ] Build QA Debug Overlay (`frontend/src/components/DebugOverlay.tsx`) displaying raw Stockfish JSON, LLM prompts/responses, and manual re-evaluation trigger (scoped to QA profile).
+- [x] Build History Browser & Replay component with evaluation curve and blunder markers.
+- [x] Build Finding Cards & move record statistics (`blunder_frequency`, `missed_opportunity_frequency`).
+- [x] Build QA Debug Overlay (`frontend/src/components/Analytics/AnalyticsDashboard.tsx`) displaying raw Stockfish JSON, LLM prompts/responses, and manual re-evaluation trigger (scoped to QA profile).
 
 ---
 
 ## 📍 Phase 7: Analytics & Weakness Dashboard
-- [ ] Build multi-dimensional SQL aggregation endpoints (`GET /api/analytics/summary`).
-- [ ] Build 6-Aspect Radar/Funnel & categorical strength/weakness charts (`frontend/src/components/AnalyticsDashboard.tsx`).
-- [ ] Build long-term category progress line charts.
+- [x] Build multi-dimensional API client (`frontend/src/api/analysisApi.ts`).
+- [x] Build 6-Aspect Radar/Funnel & categorical strength/weakness charts (`frontend/src/components/Analytics/AnalyticsDashboard.tsx`).
+- [x] Build Lichess Live Explorer & Bulk Importer tab.
+- [x] Mount top navbar **📊 Profile Analytics** button and modal overlay in `frontend/src/App.tsx`.

@@ -28,6 +28,7 @@ import { PopoutWindow } from "./components/PopoutWindow";
 import { DraggableFloatingPane } from "./components/DraggableFloatingPane";
 import { SettingsDialog } from "./components/SettingsDialog";
 import { CollectionSelector } from "./components/Collection/CollectionSelector";
+import { AnalyticsDashboard } from "./components/Analytics/AnalyticsDashboard";
 
 type NodeContextMenu = {
   itemId: string;
@@ -127,6 +128,8 @@ function App() {
       floatDetails,
     ]
   );
+
+  const [showAnalyticsModal, setShowAnalyticsModal] = useState(false);
 
   const restoreLayout = useCallback(() => {
     if (savedLayout !== null) {
@@ -1561,6 +1564,13 @@ function App() {
 
             <CollectionSelector onCollectionSwitched={loadData} selectedItemId={selectedItemId} />
 
+            <button
+              onClick={() => setShowAnalyticsModal(true)}
+              className="bg-indigo-700 hover:bg-indigo-600 text-white px-3 py-1 rounded text-xs font-semibold flex items-center gap-1 shadow-sm transition-colors cursor-pointer"
+            >
+              📊 Profile Analytics
+            </button>
+
             {menuOpen && (
               <>
                 <div className="fixed inset-0 z-30" onMouseDown={() => { setMenuOpen(false); setActiveMenu(null); }} />
@@ -2482,6 +2492,19 @@ function App() {
                 </button>
               )}
             </div>
+          </div>
+        </div>
+      )}
+      {showAnalyticsModal && (
+        <div className="fixed inset-0 z-[100] bg-black/70 flex items-center justify-center p-4">
+          <div className="bg-gray-900 border border-gray-700 rounded-xl shadow-2xl w-full max-w-6xl h-[85vh] flex flex-col overflow-hidden relative">
+            <button
+              onClick={() => setShowAnalyticsModal(false)}
+              className="absolute right-4 top-4 z-10 text-gray-400 hover:text-white bg-gray-800 hover:bg-gray-700 w-8 h-8 rounded-full flex items-center justify-center font-bold"
+            >
+              ✕
+            </button>
+            <AnalyticsDashboard />
           </div>
         </div>
       )}
