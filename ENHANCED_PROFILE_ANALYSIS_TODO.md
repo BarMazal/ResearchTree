@@ -37,9 +37,9 @@
 ---
 
 ## 📍 Phase 4: QA Data Seeder & Lichess Importer
-- [ ] Implement synthetic data seeder script (`scripts/seed_qa_data.py`) creating 200+ realistic QA profile events with move trees & blunder rates.
-- [ ] Implement Lichess API importer service (`backend/app/services/lichess_service.py`) for streaming user games and puzzle FENs.
-- [ ] Build Lichess Explorer UI tab (`frontend/src/components/LichessExplorer.tsx`).
+- [x] Implement synthetic data seeder script (`scripts/seed_qa_data.py`) creating 200+ realistic QA profile events with move trees & blunder rates.
+- [x] Implement Lichess API importer service (`backend/app/services/lichess_service.py`) for streaming user games and puzzle FENs.
+- [x] Build Lichess Explorer & Import endpoints (`backend/app/routes/lichess.py`).
 
 ---
 
