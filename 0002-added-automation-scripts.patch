@@ -1,0 +1,68 @@
+From e7d055f4a2f1ad25539d3836b72bfc253692d837 Mon Sep 17 00:00:00 2001
+From: GuyL <guy.lifchitz@samsung.com>
+Date: Mon, 13 Jul 2026 09:32:40 +0300
+Subject: [PATCH 2/2] added automation scripts
+
+---
+ apply_guest_patch.ps1  | 15 +++++++++++++++
+ create_guest_patch.ps1 | 25 +++++++++++++++++++++++++
+ 2 files changed, 40 insertions(+)
+ create mode 100644 apply_guest_patch.ps1
+ create mode 100644 create_guest_patch.ps1
+
+diff --git a/apply_guest_patch.ps1 b/apply_guest_patch.ps1
+new file mode 100644
+index 0000000..3b183be
+--- /dev/null
++++ b/apply_guest_patch.ps1
+@@ -0,0 +1,15 @@
++param([string]$filename)
++
++if (-not $filename) {
++  Write-Host "Usage: .\apply_guest_patch.ps1 <filename>" -ForegroundColor Red
++  exit 1
++}
++
++$errors = git apply --check --allow-empty $filename 2>&1
++if ($LASTEXITCODE -ne 0) {
++  Write-Host "Patch check failed:" -ForegroundColor Red
++  Write-Host $errors -ForegroundColor Red
++  exit 1
++}
++
++git apply $filename
+\ No newline at end of file
+diff --git a/create_guest_patch.ps1 b/create_guest_patch.ps1
+new file mode 100644
+index 0000000..41510b0
+--- /dev/null
++++ b/create_guest_patch.ps1
+@@ -0,0 +1,25 @@
++# 1. Ask if you want to commit your current workspace changes
++Write-Host "Do you have new changes to stage and commit?" -ForegroundColor Cyan
++$choice = Read-Host "Stage and commit changes now? (Y/N)"
++
++if ($choice -eq 'y' -or $choice -eq 'Y' -or $choice -eq '') {
++    # Prompt you for a custom commit message
++    $msg = Read-Host "Enter your commit message"
++    
++    if ([string]::IsNullOrWhiteSpace($msg)) {
++        Write-Host "Commit aborted: Message cannot be empty." -ForegroundColor Red
++        exit 1
++    }
++    
++    # Run the Git sequence safely
++    git add .
++    git commit -m $msg
++    Write-Host "Changes successfully committed locally.`n" -ForegroundColor Green
++}
++
++# 2. Update local pointers and generate the patch file
++Write-Host "Fetching latest master and generating patch..." -ForegroundColor Gray
++git fetch origin master
++git format-patch origin/master -o .
++
++Write-Host "`nPatch generated successfully!" -ForegroundColor Green
+-- 
+2.53.0.windows.3
+

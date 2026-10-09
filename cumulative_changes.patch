@@ -1,0 +1,210 @@
+﻿From 02255ebd579df05330eef9691c51a8857c4c301f Mon Sep 17 00:00:00 2001
+From: GuyL <guy.lifchitz@samsung.com>
+Date: Mon, 13 Jul 2026 08:56:09 +0300
+Subject: [PATCH] Fixed installation script. Ignore data changes.
+
+---
+ .gitignore                                    | Bin 77 -> 180 bytes
+ backend/research_tree.db                      | Bin 122880 -> 122880 bytes
+ .../SOURCES.txt                               |  19 +++-
+ scripts/start-backend.ps1                     |  96 +++++++++++++++++-
+ 4 files changed, 108 insertions(+), 7 deletions(-)
+
+diff --git a/.gitignore b/.gitignore
+index 1e3dd09dcc2afa8e0d63e96916d4f1b838fad6be..da584ee3e652965d88bebccae64f58cfb3dfa994 100644
+GIT binary patch
+literal 180
+zcmY*RTMEN44AXZY7a1(Q#BR|2n>@UxtW8Ff7JB=s`y0lVY)LLPsjM~ai?+d<G`CK0
+zhn9mV@;RfASw*<r95;&8I3J^oy>4pFGw*9?E``go)QJFxga8Y}=@IdUqVP6gBWr9=
+Z7Lg(7znhZ%dmUX9>yDY(7b?@&$1fuxDgXcg
+
+literal 77
+zcmWN`yA6Oa3<bdcjY45B!3LqXNNf?Ld=U9aY){J5m8vGW>PXfYdbiG?X=O4*o-dps
+anh0Z~1<(r6?!@)_8jd)!Z=`;8suz9){~25W
+
+diff --git a/backend/research_tree.db b/backend/research_tree.db
+index 171895c275c2e6a40e0f83a78279374c39bc5373..aff76d420c5fce1ade472e57af0f6c2e2efe68f4 100644
+GIT binary patch
+delta 829
+zcmZ9~Ur19?90%~-6|)D!{y?N8EeVPq4(Faf_uPAPY=(gm7#aCcA`u2rlo2RuR%`#7
+z+19NKJ(Q#m(L*6iEvNKyV$DB+(+Zy|3u-SC5fVhJsJqQOcRSA?zQ5o3p5x^uUS6VA
+z*el&Px9o9Lx^1Ancc`T%;S{kGQk77ZQb0vaMC5Uewc3p1>7MTkb3K{p*;<T<B4Nrr
+z=iY|CWl`JVzVOJI7aIi&k|2>WEFj;mRIT2h^jW46f}n_a_x8?pE7NKw{FWdhQ3)#r
+zl%1x3nh5?EBvMFtWJ7g$B`7@EVj@WuMZhSN3E@%q?~exJCogQO_v)on0Tbm5pfZ)Q
+zr{ie;ZutTpPlc?AAf$*qc&m6^<8;8fH_7eP(~w8Gy?;)Jtwxe0!uYAWC1-Z;T$2MY
+zV|ELoj4&#DE-%-eYx3+&XouxVkU|kH1f71QtoIs;HrthQU7G~@zEq}a*<+Q;08++e
+znQITP9Zb(X;O)<sntv=b=_h78O-57*0b|T~Y93uX{>3)p;y#pi{H-`PJhu=tnUO|;
+zs1OP%*Jf*vr@x-(7oV-_s%mnMdWB1+MGgVX5W|RTPu`H>#?}04u<mZ=_F#PAy0B9)
+zp)pqiP=wGZIP#(QNIbQfw^fh-3GD5NFGhs#1&CEbfboNj26?o+zv0lJp9d24t(nC&
+zqnhx}Wp-#d8Bk0igItRZ`NuvxxbMLJJMmvL!nU#^B>{va$}rcS-Y9!D|C$Hx-|LF+
+JelH~L{{SbV6g&U`
+
+delta 820
+zcmY+CO-NKx7>4h$(2%h~a$!U1XiyP!JLlZ<dqcWb1VTjgBjTcr4091NR#XOYb7n-u
+z(zwW2Xqh1e8UBG2tq!C!nq<+YjkPg~f?7lp7E*V{nDOo(-uHW-b8MAotGup2PN4ht
+zroFj=ZcT458m+H<5rjAhxk;r7sZJ#046DfJ+{c=xS$3X3zb-bl2DF!~hNyuBR?Tw-
+zhf~m%TO~!~=O#CRQg0IHh-9E}(x30#pK9^6QOXgOR#j)WooRC_6Jc+V;0D4ODAndH
+zB%<CRB83o^-Lq7a4Qfl)yTgJ|nAn|1bi^QnSVfE9i4=68Z(pnC_@*PCBv$}|OkFs%
+zvMnvZ8JTYNK-6H8Fslju7|GUE&qO?TQw$k`*45D!D1G<ROq+)x)DTdrj)oQ8X_Ngg
+zhjYq3COI*vPz}9-{#0AaWSyqPLIohQb@i(dfe6fCq4gz2%H=if#zv<rsXJA3zss{a
+zxXuY<22!ny)eEx^4yw&(kM#YDX|XeY&|H?WMs<m#gj_|ICx^803bpO+>ph7cZS2j5
+z;cOaVI%Y^>p`z8N2509#s>Ys)WBZ?36E?W+`_B>g9jHz@H6&Nj6CI89L+eyi`xm~r
+zvo_w}0k(s3$byKPhA@%TC6QE8b$MXu`1#&l*4^Z_;(Ol*;$LrqpCC5b2?`6jvP%<V
+zN1uk(9ey#nd}-}O7nrXobvGhnQp3bh7t(MGRhaE~6q@#_7WnOX{Ld>;=1)^N^)WEk
+bA*GNAWq;ao^5K&~75;m=Hop5kn9BJFRg3;&
+
+diff --git a/backend/research_tree_backend.egg-info/SOURCES.txt b/backend/research_tree_backend.egg-info/SOURCES.txt
+index a949d1e..5ed7291 100644
+--- a/backend/research_tree_backend.egg-info/SOURCES.txt
++++ b/backend/research_tree_backend.egg-info/SOURCES.txt
+@@ -5,10 +5,23 @@ app/database.py
+ app/main.py
+ app/models/__init__.py
+ app/models/bookmark.py
+-app/models/cluster.py
+-app/models/edge.py
+-app/models/node.py
++app/models/item.py
++app/models/item_edge.py
+ app/models/tag.py
++app/routes/__init__.py
++app/routes/bookmarks.py
++app/routes/item_edges.py
++app/routes/items.py
++app/routes/search.py
++app/routes/tags.py
++app/routes/upload.py
++app/schemas/__init__.py
++app/schemas/bookmark.py
++app/schemas/item.py
++app/schemas/item_edge.py
++app/schemas/tag.py
++app/services/__init__.py
++app/services/db_helpers.py
+ research_tree_backend.egg-info/PKG-INFO
+ research_tree_backend.egg-info/SOURCES.txt
+ research_tree_backend.egg-info/dependency_links.txt
+diff --git a/scripts/start-backend.ps1 b/scripts/start-backend.ps1
+index 61d1149..c413292 100644
+--- a/scripts/start-backend.ps1
++++ b/scripts/start-backend.ps1
+@@ -15,18 +15,106 @@ if ($process) {
+ $backendDir = Join-Path $PSScriptRoot "..\backend"
+ $venvDir = Join-Path $backendDir ".venv"
+ 
++# --- Python version selection ---
++function Get-PythonVersions {
++  $versions = @()
++  $list = py --list 2>$null
++
++  if (-not $list) {
++    # Fallback: try 'python' command directly
++    try {
++      $exe = (Get-Command python.exe -ErrorAction Stop).Source
++      $ver = & $exe --version 2>$null
++      if ($ver) {
++        $versions += @{ Version = "python"; Label = $ver.Trim(); Executable = $exe }
++      }
++    } catch {}
++    return $versions
++  }
++
++  foreach ($line in $list) {
++    $trimmed = $line.Trim()
++    if ($trimmed -match '(-V:(\d+\.\d+))\s+\*?') {
++      $flag = $matches[1]
++      $ver = $matches[2]
++      $isDefault = $trimmed -match '\*'
++      $exe = & py $flag -c "import sys; print(sys.executable)" 2>$null
++      if ($exe -and (Test-Path $exe)) {
++        $versions += @{
++          Version = $ver
++          Label   = "Python $ver"
++          Flag    = $flag
++          IsDefault = $isDefault
++          Executable = $exe
++        }
++      }
++    }
++  }
++
++  return $versions
++}
++
++$versions = Get-PythonVersions
++$selectedFlag = $null
++
++if ($versions.Count -eq 0) {
++  Write-Host "`nNo Python installation found." -ForegroundColor Red
++  $answer = Read-Host "Would you like to install Python? (Y/n)"
++  if ($answer -eq '' -or $answer.ToLower() -eq 'y') {
++    Start-Process "https://www.python.org/downloads/"
++    Write-Host "`nOpen the link above, download and install Python, then run this script again." -ForegroundColor Yellow
++    Write-Host "Make sure to check 'Add Python to PATH' during installation." -ForegroundColor Yellow
++    exit 1
++  } else {
++    Write-Host "Cannot start backend without Python." -ForegroundColor Red
++    exit 1
++  }
++} else {
++  if ($versions.Count -eq 1) {
++    $selectedFlag = $versions[0].Flag
++    Write-Host "`nUsing $($versions[0].Label)" -ForegroundColor DarkGray
++  } else {
++    $default = $versions | Where-Object { $_.IsDefault } | Select-Object -First 1
++    if (-not $default) { $default = $versions[0] }
++
++    Write-Host "`nAvailable Python versions:" -ForegroundColor Gray
++    for ($i = 0; $i -lt $versions.Count; $i++) {
++      $v = $versions[$i]
++      $marker = if ($v.IsDefault) { " (*)" } else { "" }
++      Write-Host "  [$($i+1)] $($v.Label) $($v.Executable)$marker"
++    }
++    Write-Host "`n  Default: [$($([array]::IndexOf($versions, $default) + 1))] $($default.Label)" -ForegroundColor Gray
++    $input = Read-Host "  Select version [$(($versions.IndexOf($default) + 1))]"
++    if ($input -eq '') {
++      $selectedFlag = $default.Flag
++    } elseif ($input -match '^\d+$' -and [int]$input -ge 1 -and [int]$input -le $versions.Count) {
++      $selectedFlag = $versions[[int]$input - 1].Flag
++    } else {
++      $selectedFlag = $default.Flag
++    }
++  }
++}
++
++$python = Join-Path $venvDir "Scripts\python.exe"
++
+ if (-not (Test-Path $venvDir)) {
+-  Write-Host "Creating virtual environment..."
++  Write-Host "`nCreating virtual environment..." -ForegroundColor DarkGray
+   Push-Location $backendDir
+   try {
+-    python -m venv .venv
++    & py $selectedFlag -m venv .venv
+   } finally {
+     Pop-Location
+   }
+ }
+ 
++if (-not (Test-Path (Join-Path $venvDir "Lib\site-packages\uvicorn"))) {
++  Write-Host "Installing backend dependencies..." -ForegroundColor DarkGray
++  Push-Location $backendDir
++  & $python -m pip install -e . --quiet
++  Pop-Location
++}
++
+ Write-Host "Starting backend on http://127.0.0.1:$port ..."
+-$python = Join-Path $venvDir "Scripts\python.exe"
+ if ($NoWait) {
+   $proc = Start-Process -NoNewWindow -FilePath $python -ArgumentList "-m uvicorn app.main:app --host 127.0.0.1 --port $port --reload --log-level debug" -WorkingDirectory $backendDir -PassThru
+   Write-Host "  Backend PID: $($proc.Id)"
+@@ -38,4 +126,4 @@ if ($NoWait) {
+   } finally {
+     Pop-Location
+   }
+-}
++}
+\ No newline at end of file
+-- 
+2.53.0.windows.3
+

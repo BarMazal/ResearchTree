@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
 import "react-pdf/dist/esm/Page/TextLayer.css";
+import "react-pdf/dist/esm/Page/AnnotationLayer.css";
 
 pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.mjs`;
 
@@ -90,6 +91,7 @@ export function PDFContainer({
             pageNumber={currentPage}
             width={pageWidth}
             renderTextLayer
+            renderAnnotationLayer={false}
             className="shadow-lg"
           />
         </Document>

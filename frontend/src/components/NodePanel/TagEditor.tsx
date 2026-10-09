@@ -9,15 +9,19 @@ type Props = {
 
 export function TagEditor({ tags, allTags, onAdd, onRemove }: Props) {
   const [input, setInput] = useState("");
+  const [isFocused, setIsFocused] = useState(false);
 
-  const suggestions = allTags.filter(
-    (t) => !tags.includes(t) && t.toLowerCase().includes(input.toLowerCase())
+  const safeTags = (tags || []).map((t) => (typeof t === "string" ? t : (t as any)?.name || String(t)));
+  const safeAllTags = (allTags || []).map((t) => (typeof t === "string" ? t : (t as any)?.name || String(t)));
+
+  const suggestions = safeAllTags.filter(
+    (t) => !safeTags.includes(t) && t.toLowerCase().includes(input.toLowerCase())
   );
 
   return (
     <div>
       <div className="flex flex-wrap gap-1 mb-1">
-        {tags.map((t) => (
+        {safeTags.map((t) => (
           <span
             key={t}
             className="bg-blue-800 text-blue-100 text-xs px-2 py-0.5 rounded-full flex items-center gap-1"
@@ -32,6 +36,8 @@ export function TagEditor({ tags, allTags, onAdd, onRemove }: Props) {
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
+          onFocus={() => setIsFocused(true)}
+          onBlur={() => setTimeout(() => setIsFocused(false), 200)}
           onKeyDown={(e) => {
             if (e.key === "Enter" && input.trim()) {
               onAdd(input.trim());
@@ -41,8 +47,8 @@ export function TagEditor({ tags, allTags, onAdd, onRemove }: Props) {
           placeholder="Add tag..."
           className="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm"
         />
-        {input && suggestions.length > 0 && (
-          <div className="absolute top-full left-0 right-0 bg-gray-800 border border-gray-600 rounded mt-1 z-10">
+        {isFocused && suggestions.length > 0 && (
+          <div className="absolute top-full left-0 right-0 bg-gray-800 border border-gray-600 rounded mt-1 z-20 max-h-40 overflow-y-auto shadow-lg">
             {suggestions.map((s) => (
               <button
                 key={s}
@@ -61,3 +67,4 @@ export function TagEditor({ tags, allTags, onAdd, onRemove }: Props) {
     </div>
   );
 }
+

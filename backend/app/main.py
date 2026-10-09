@@ -58,22 +58,23 @@ def _migrate_legacy_bookmarks_columns() -> None:
         conn.commit()
 
 
+def _migrate_items_opacity_column() -> None:
+    with engine.connect() as conn:
+        cols = {
+            row[1]
+            for row in conn.execute(text("PRAGMA table_info(items)"))
+        }
+        if "opacity" not in cols:
+            conn.execute(text("ALTER TABLE items ADD COLUMN opacity FLOAT DEFAULT 1.0"))
+            conn.commit()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    Base.metadata.create_all(bind=engine)
-
-    try:
-        _migrate_legacy_bookmarks_columns()
-    except Exception:
-        pass
-
-    for col in ["graph_x", "graph_y"]:
-        try:
-            with engine.connect() as conn:
-                conn.execute(text(f"ALTER TABLE items ADD COLUMN {col} FLOAT"))
-                conn.commit()
-        except Exception:
-            pass
+    _migrate_legacy_bookmarks_columns()
+    _migrate_items_opacity_column()
+    from app.services.collection_service import collection_service
+    collection_service.initialize()
     yield
 
 

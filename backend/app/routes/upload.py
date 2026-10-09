@@ -4,14 +4,14 @@ from pathlib import Path
 
 from fastapi import APIRouter, UploadFile, File
 
-from app.config import settings
+from app.services.collection_service import collection_service
 
 router = APIRouter(prefix="/upload", tags=["upload"])
 
 
 @router.post("")
 async def upload_file(file: UploadFile = File(...)):
-    storage = Path(settings.storage_dir)
+    storage = collection_service.get_active_files_dir()
     storage.mkdir(parents=True, exist_ok=True)
     ext = Path(file.filename or "file").suffix
     name = f"{uuid.uuid4()}{ext}"

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { api } from "../../api/client";
+import { truncateTitle } from "../../utils/text";
 
 type Props = {
   onSelect: (id: string) => void;
@@ -153,7 +154,7 @@ export function SearchBar({ onSelect }: Props) {
               className="block w-full text-left px-3 py-2 text-sm hover:bg-gray-700 border-b border-gray-700 last:border-0"
               onMouseDown={() => { onSelect(n.id); setOpen(false); setQuery(""); }}
             >
-              <span className="font-medium">{n.title}</span>
+              <span className="font-medium" title={n.title}>{truncateTitle(n.title)}</span>
               <span className="text-gray-500 ml-2 text-xs">{n.type}</span>
               {n.tags && n.tags.length > 0 && (
                 <span className="block text-xs text-gray-400 mt-1">tags: {n.tags.join(", ")}</span>

@@ -2,9 +2,11 @@ import { useEffect, useRef } from "react";
 
 export type MenuAction =
   | { type: "bookmark" }
-  | { type: "spawn_note" }
   | { type: "spawn_branch" }
-  | { type: "mark_progress" };
+  | { type: "spawn_waiting_on" }
+  | { type: "mark_progress" }
+  | { type: "spawn_llm_summary" }
+  | { type: "spawn_notebook" };
 
 type Props = {
   x: number;
@@ -28,9 +30,11 @@ export function ContextMenu({ x, y, selectedText, onAction, onClose }: Props) {
   }, [onClose]);
 
   const items = [
+    { label: "⏳ Spawn Waiting On...", type: "spawn_waiting_on" as const, desc: "Prerequisite blocker with reason & resolution tracking" },
     { label: "Bookmark selection", type: "bookmark" as const, desc: "Save quote + page + note" },
-    { label: "Spawn note", type: "spawn_note" as const, desc: "New note linked to this" },
-    { label: "Spawn child", type: "spawn_branch" as const, desc: "New child item of this" },
+    { label: "Spawn LLM Summary", type: "spawn_llm_summary" as const, desc: "Ollama summary & bi-directional link" },
+    { label: "Spawn NotebookLM", type: "spawn_notebook" as const, desc: "Upload selection to NotebookLM" },
+    { label: "Spawn child note", type: "spawn_branch" as const, desc: "New child note linked to selection" },
     { label: "Mark progress here", type: "mark_progress" as const, desc: "Set progress to current page" },
   ];
 
@@ -59,3 +63,4 @@ export function ContextMenu({ x, y, selectedText, onAction, onClose }: Props) {
     </div>
   );
 }
+

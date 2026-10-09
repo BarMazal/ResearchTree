@@ -6,19 +6,28 @@ import {
   type ItemEdgeData,
 } from "./store/useGraphStore";
 import { SearchBar } from "./components/Sidebar/SearchBar";
-import { ItemGraph } from "./components/GraphView/ItemGraph";
+import { truncateTitle } from "./utils/text";
+import { ItemGraph, getNormalizedResourceKey } from "./components/GraphView/ItemGraph";
 import { GraphSplitter } from "./components/GraphView/GraphSplitter";
 import { ReadPane } from "./components/NodePanel/ReadPane";
 import { ResourceDetail } from "./components/NodePanel/ResourceDetail";
+import { FLAG_DEFINITIONS, type FlagType } from "./components/NodePanel/FlagEditor";
 import { BookmarkList } from "./components/NodePanel/BookmarkList";
 import { TitleDialog } from "./components/NodePanel/TitleDialog";
 import { AddItemDialog } from "./components/NodePanel/AddItemDialog";
 import { ScratchPad } from "./components/NodePanel/ScratchPad";
 import { LatexView } from "./components/NodePanel/LatexView";
+import { NotebookView } from "./components/NodePanel/NotebookView";
+import { RichNoteView } from "./components/NodePanel/RichNoteView";
+import { MergeModal } from "./components/MergeModal/MergeModal";
 import { PDFContainer } from "./components/PDFViewer/PDFContainer";
 import { APDF } from "./components/PDFViewer/APDF";
 import { ContextMenu, type MenuAction } from "./components/PDFViewer/ContextMenu";
 import { SpawnDialog } from "./components/PDFViewer/SpawnDialog";
+import { PopoutWindow } from "./components/PopoutWindow";
+import { DraggableFloatingPane } from "./components/DraggableFloatingPane";
+import { SettingsDialog } from "./components/SettingsDialog";
+import { CollectionSelector } from "./components/Collection/CollectionSelector";
 
 type NodeContextMenu = {
   itemId: string;
@@ -30,25 +39,108 @@ function App() {
   const rootRef = useRef<HTMLDivElement>(null);
   const graphAreaRef = useRef<HTMLDivElement>(null);
 
+  const [showSettingsDialog, setShowSettingsDialog] = useState(false);
+  const [isMergeModalOpen, setIsMergeModalOpen] = useState(false);
+  const [mergeModalItems, setMergeModalItems] = useState<ItemData[]>([]);
+  const [mergePrimaryId, setMergePrimaryId] = useState<string | undefined>(undefined);
+
   const {
     items,
     itemEdges,
     selectedItemId,
-    selectNonce,
+    selectedItemIds,
     setItems,
     setItemEdges,
     selectItem,
+    toggleSelectItem,
+    setSelectedItemIds,
+    clearMultiSelect,
     updateItem,
     addItem,
   } = useGraphStore();
+
+
+
+
+
 
   const [status, setStatus] = useState("connecting...");
 
   const [showSidebar, setShowSidebar] = useState(true);
   const [showGraph, setShowGraph] = useState(true);
   const [showReader, setShowReader] = useState(true);
+  const [showDetails, setShowDetails] = useState(true);
   const [sidebarWidth, setSidebarWidth] = useState(280);
   const [graphWidth, setGraphWidth] = useState(380);
+
+  type FloatMode = "docked" | "floating" | "popout";
+  const [floatSidebar, setFloatSidebar] = useState<FloatMode>("docked");
+  const [floatGraph, setFloatGraph] = useState<FloatMode>("docked");
+  const [floatReader, setFloatReader] = useState<FloatMode>("docked");
+  const [floatDetails, setFloatDetails] = useState<FloatMode>("docked");
+
+  const [savedLayout, setSavedLayout] = useState<{
+    showSidebar: boolean;
+    showGraph: boolean;
+    showReader: boolean;
+    showDetails: boolean;
+    floatSidebar: FloatMode;
+    floatGraph: FloatMode;
+    floatReader: FloatMode;
+    floatDetails: FloatMode;
+  } | null>(null);
+
+  const showOnlyPane = useCallback(
+    (pane: "sidebar" | "graph" | "reader" | "details") => {
+      setSavedLayout((prev) => {
+        if (prev === null) {
+          return {
+            showSidebar,
+            showGraph,
+            showReader,
+            showDetails,
+            floatSidebar,
+            floatGraph,
+            floatReader,
+            floatDetails,
+          };
+        }
+        return prev;
+      });
+      setShowSidebar(pane === "sidebar");
+      setShowGraph(pane === "graph");
+      setShowReader(pane === "reader");
+      setShowDetails(pane === "details");
+      setFloatSidebar("docked");
+      setFloatGraph("docked");
+      setFloatReader("docked");
+      setFloatDetails("docked");
+    },
+    [
+      showSidebar,
+      showGraph,
+      showReader,
+      showDetails,
+      floatSidebar,
+      floatGraph,
+      floatReader,
+      floatDetails,
+    ]
+  );
+
+  const restoreLayout = useCallback(() => {
+    if (savedLayout !== null) {
+      setShowSidebar(savedLayout.showSidebar);
+      setShowGraph(savedLayout.showGraph);
+      setShowReader(savedLayout.showReader);
+      setShowDetails(savedLayout.showDetails);
+      setFloatSidebar(savedLayout.floatSidebar);
+      setFloatGraph(savedLayout.floatGraph);
+      setFloatReader(savedLayout.floatReader);
+      setFloatDetails(savedLayout.floatDetails);
+      setSavedLayout(null);
+    }
+  }, [savedLayout]);
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [activeMenu, setActiveMenu] = useState<"view" | "add" | null>(null);
@@ -95,17 +187,18 @@ function App() {
   } | null>(null);
 
   const [nodeMenu, setNodeMenu] = useState<NodeContextMenu | null>(null);
-  const [nodeSubmenu, setNodeSubmenu] = useState<"spawn" | null>(null);
+  const [nodeSubmenu, setNodeSubmenu] = useState<"spawn" | "flags" | "opacity" | null>(null);
   const nodeMenuRef = useRef<HTMLDivElement>(null);
   const nodeSubmenuCloseTimerRef = useRef<number | null>(null);
-  const [collapsedIds, setCollapsedIds] = useState<Set<string>>(() => {
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(() => {
     try {
-      const saved = localStorage.getItem("collapsedIds");
+      const saved = localStorage.getItem("expandedIds");
       return saved ? new Set(JSON.parse(saved)) : new Set();
     } catch {
       return new Set();
     }
   });
+  const [hasInitializedExpanded, setHasInitializedExpanded] = useState(false);
   const [pendingOrganizeRootId, setPendingOrganizeRootId] = useState<string | null>(null);
   const [deletePrompt, setDeletePrompt] = useState<{ itemId: string; descendantCount: number } | null>(null);
   const [highlightNodeId, setHighlightNodeId] = useState<string | null>(null);
@@ -148,11 +241,11 @@ function App() {
 
   useEffect(() => {
     try {
-      localStorage.setItem("collapsedIds", JSON.stringify(Array.from(collapsedIds)));
+      localStorage.setItem("expandedIds", JSON.stringify(Array.from(expandedIds)));
     } catch (e) {
-      console.error("Failed to save collapsedIds state:", e);
+      console.error("Failed to save expandedIds state:", e);
     }
-  }, [collapsedIds]);
+  }, [expandedIds]);
 
   useEffect(() => {
     localStorage.setItem("detail-dock", detailDock);
@@ -168,19 +261,36 @@ function App() {
 
   const selectedItem = items.find((r) => r.id === selectedItemId) ?? null;
   const hasReader = selectedItem && (selectedItem.file_path || selectedItem.source_url);
+  const prevSelectedIdRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (selectedItem && (selectedItem.file_path || selectedItem.source_url) && !showReader) {
-      setShowReader(true);
+    if (selectedItemId && selectedItemId !== prevSelectedIdRef.current) {
+      prevSelectedIdRef.current = selectedItemId;
+      if (selectedItem && (selectedItem.file_path || selectedItem.source_url)) {
+        setShowReader(true);
+      }
+    } else if (!selectedItemId) {
+      prevSelectedIdRef.current = null;
     }
-  }, [selectNonce, selectedItem, showReader]);
+  }, [selectedItemId, selectedItem]);
 
-  const hasPdf = selectedItem?.file_path != null;
-  const pdfUrl = hasPdf ? `/api/items/${selectedItem!.id}/file` : null;
+  const isPdfTarget = (item: ItemData | null) => {
+    if (!item) return false;
+    if (item.file_path) return true;
+    if (item.type === "pdf") return true;
+    const url = item.source_url?.toLowerCase();
+    if (!url) return false;
+    return url.endsWith(".pdf") || url.includes("arxiv.org/pdf/") || url.includes("arxiv.org/abs/");
+  };
+
+  const hasPdf = isPdfTarget(selectedItem);
+  const pdfUrl = hasPdf && selectedItem ? `/api/items/${selectedItem.id}/file` : null;
   const usePdfjs = hasPdf && viewerMode === "pdfjs";
   const useAPdfjs = hasPdf && viewerMode === "apdfjs";
   const isScratchPad = selectedItem?.type === "scratch-pad";
   const isLatex = selectedItem?.type === "latex";
+  const isNotebook = selectedItem?.type === "notebook";
+  const isRichNote = selectedItem != null && !hasPdf && !isScratchPad && !isLatex && !isNotebook;
 
   const idSet = useMemo(() => new Set(items.map((i) => i.id)), [items]);
   const graphEdges = useMemo(() => {
@@ -205,21 +315,79 @@ function App() {
 
   const childrenByParent = useMemo(() => {
     const map = new Map<string | null, ItemData[]>();
+    const parentsOfItem = new Map<string, Set<string>>();
+
+    const addParentRelation = (childId: string, parentId: string) => {
+      if (childId === parentId) return;
+      let pSet = parentsOfItem.get(childId);
+      if (!pSet) {
+        pSet = new Set<string>();
+        parentsOfItem.set(childId, pSet);
+      }
+      pSet.add(parentId);
+    };
+
+    // 1. Direct parent_item_id
     for (const item of items) {
-      const validParent = item.parent_item_id && idSet.has(item.parent_item_id) ? item.parent_item_id : null;
-      const arr = map.get(validParent) ?? [];
-      arr.push(item);
-      map.set(validParent, arr);
+      if (item.parent_item_id && idSet.has(item.parent_item_id)) {
+        addParentRelation(item.id, item.parent_item_id);
+      }
     }
+
+    // 2. Edge relationships (parent_child, spawned_from, child)
+    for (const edge of itemEdges) {
+      const rel = edge.relationship?.toLowerCase();
+      if (
+        (rel === "parent_child" || rel === "spawned_from" || rel === "child") &&
+        idSet.has(edge.source_item_id) &&
+        idSet.has(edge.target_item_id) &&
+        edge.source_item_id !== edge.target_item_id
+      ) {
+        addParentRelation(edge.target_item_id, edge.source_item_id);
+      }
+    }
+
+    // 3. Populate children map for each parent
+    for (const item of items) {
+      const parents = parentsOfItem.get(item.id);
+      if (!parents || parents.size === 0) {
+        const arr = map.get(null) ?? [];
+        arr.push(item);
+        map.set(null, arr);
+      } else {
+        for (const parentId of parents) {
+          const arr = map.get(parentId) ?? [];
+          arr.push(item);
+          map.set(parentId, arr);
+        }
+      }
+    }
+
     for (const arr of map.values()) {
       arr.sort((a, b) => +new Date(b.updated_at) - +new Date(a.updated_at));
     }
     return map;
-  }, [items, idSet]);
+  }, [items, itemEdges, idSet]);
+
 
   useEffect(() => {
-    if (items.length === 0) return; // Prevent wiping state before items load
-    setCollapsedIds((prev) => {
+    if (items.length === 0) return;
+    if (!hasInitializedExpanded) {
+      const saved = localStorage.getItem("expandedIds");
+      if (!saved) {
+        const allParents = new Set<string>();
+        for (const [parentId, children] of childrenByParent.entries()) {
+          if (parentId && children.length > 0) allParents.add(parentId);
+        }
+        setExpandedIds(allParents);
+      }
+      setHasInitializedExpanded(true);
+    }
+  }, [items.length, childrenByParent, hasInitializedExpanded]);
+
+  useEffect(() => {
+    if (items.length === 0) return;
+    setExpandedIds((prev) => {
       const next = new Set<string>();
       let changed = false;
       for (const id of prev) {
@@ -260,13 +428,13 @@ function App() {
     while (stack.length > 0) {
       const next = stack.pop()!;
       visible.add(next.id);
-      if (collapsedIds.has(next.id)) continue;
+      if (!expandedIds.has(next.id)) continue;
       const children = childrenByParent.get(next.id) ?? [];
       for (const child of children) stack.push(child);
     }
 
     return visible;
-  }, [childrenByParent, collapsedIds]);
+  }, [childrenByParent, expandedIds]);
 
   const visibleItems = useMemo(
     () => items.filter((item) => visibleItemIds.has(item.id)),
@@ -457,56 +625,133 @@ function App() {
     });
   }, [pendingOrganizeRootId, visibleItemIds, organizeVisibleGraph]);
 
+  const parentsMap = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    for (const [parentId, children] of childrenByParent.entries()) {
+      if (parentId) {
+        for (const child of children) {
+          let set = map.get(child.id);
+          if (!set) {
+            set = new Set<string>();
+            map.set(child.id, set);
+          }
+          set.add(parentId);
+        }
+      }
+    }
+    return map;
+  }, [childrenByParent]);
+
+  const expandAncestors = useCallback((itemId: string, set: Set<string>) => {
+    const queue = [itemId];
+    const visited = new Set<string>();
+
+    while (queue.length > 0) {
+      const currentId = queue.shift()!;
+      if (visited.has(currentId)) continue;
+      visited.add(currentId);
+
+      const pIds = parentsMap.get(currentId);
+      if (pIds) {
+        for (const pId of pIds) {
+          set.add(pId);
+          queue.push(pId);
+        }
+      }
+    }
+  }, [parentsMap]);
+
+
   const expandItem = useCallback((itemId: string) => {
-    setCollapsedIds((prev) => {
-      if (!prev.has(itemId)) return prev;
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      next.add(itemId);
+      expandAncestors(itemId, next);
+      return next;
+    });
+  }, [expandAncestors]);
+
+  const collapseItem = useCallback((itemId: string) => {
+    setExpandedIds((prev) => {
       const next = new Set(prev);
       next.delete(itemId);
       return next;
     });
   }, []);
 
-  const collapseItem = useCallback((itemId: string) => {
-    if (!hasChildrenIds.has(itemId)) return;
-    setCollapsedIds((prev) => {
+  const toggleItemExpansion = useCallback((itemId: string, e?: React.SyntheticEvent) => {
+    if (e) {
+      e.stopPropagation();
+      e.preventDefault();
+    }
+    setExpandedIds((prev) => {
       const next = new Set(prev);
-      next.add(itemId);
+      if (next.has(itemId)) {
+        next.delete(itemId);
+      } else {
+        next.add(itemId);
+        expandAncestors(itemId, next);
+      }
       return next;
     });
-  }, [hasChildrenIds]);
+  }, [expandAncestors]);
 
   const expandAllFromItem = useCallback((itemId: string) => {
     const descendants = getDescendantIds(itemId);
-    setCollapsedIds((prev) => {
+    setExpandedIds((prev) => {
       const next = new Set(prev);
-      next.delete(itemId);
+      next.add(itemId);
+      expandAncestors(itemId, next);
       for (const descendantId of descendants) {
-        next.delete(descendantId);
+        next.add(descendantId);
       }
       return next;
     });
-  }, [getDescendantIds]);
+  }, [expandAncestors, getDescendantIds]);
 
   const revealItemInTree = useCallback((itemId: string) => {
-    const itemById = new Map(items.map((item) => [item.id, item]));
-    setCollapsedIds((prev) => {
+    setExpandedIds((prev) => {
       const next = new Set(prev);
-      let changed = false;
-      let current = itemById.get(itemId);
-      while (current?.parent_item_id) {
-        if (next.delete(current.parent_item_id)) {
-          changed = true;
-        }
-        current = itemById.get(current.parent_item_id);
-      }
-      return changed ? next : prev;
+      expandAncestors(itemId, next);
+      return next;
     });
-  }, [items]);
+  }, [expandAncestors]);
+
+  const revealMultipleItems = useCallback((itemIds: string[]) => {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      for (const id of itemIds) {
+        expandAncestors(id, next);
+      }
+      return next;
+    });
+  }, [expandAncestors]);
+
+  const handleOpenMergeModal = useCallback((itemsToMerge: ItemData[], primaryId?: string) => {
+    revealMultipleItems(itemsToMerge.map((i) => i.id));
+    setMergeModalItems(itemsToMerge);
+    setMergePrimaryId(primaryId);
+    setIsMergeModalOpen(true);
+  }, [revealMultipleItems]);
+
 
   const selectAndReveal = useCallback((itemId: string | null) => {
-    if (itemId) revealItemInTree(itemId);
+    if (itemId) {
+      revealItemInTree(itemId);
+      const targetObj = items.find((i) => i.id === itemId);
+      if (targetObj) {
+        const key = getNormalizedResourceKey(targetObj);
+        if (key) {
+          const duplicates = items.filter((i) => getNormalizedResourceKey(i) === key);
+          if (duplicates.length > 1) {
+            revealMultipleItems(duplicates.map((d) => d.id));
+          }
+        }
+      }
+    }
     selectItem(itemId);
-  }, [revealItemInTree, selectItem]);
+  }, [revealItemInTree, revealMultipleItems, selectItem, items]);
+
 
 
 
@@ -606,13 +851,60 @@ function App() {
     setNodeSubmenu(null);
   }, []);
 
+  const openSpawnWaitingOn = useCallback((itemId: string) => {
+    setNodeMenu(null);
+    setNodeSubmenu(null);
+    clearNodeSubmenuCloseTimer();
+    const item = items.find((i) => i.id === itemId);
+    if (!item) return;
+    setContextMenu({
+      x: window.innerWidth / 2 - 190,
+      y: window.innerHeight / 2 - 150,
+      text: item.title,
+      page: 1,
+    });
+    setSelectedItemIds([itemId]);
+    useGraphStore.getState().selectItem(itemId);
+    setSpawnAction({ type: "spawn_waiting_on" });
+  }, [items]);
+
   const handleSpawn = useCallback(
-    async (data: { title: string; type: string; summary?: string; parent_item_id?: string | null }) => {
+    async (data: { title: string; type: string; summary?: string; parent_item_id?: string | null; is_local?: boolean; flags?: string[]; blocker_reason?: string }) => {
       if (!spawnAction || !contextMenu) return;
       const { text, page } = contextMenu;
 
       try {
         switch (spawnAction.type) {
+          case "spawn_waiting_on": {
+            const item = await api.post<ItemData>("/items", {
+              title: data.title,
+              type: "note",
+              parent_item_id: selectedItem?.id,
+              summary: text,
+              is_local: data.is_local ?? false,
+              is_resolved: false,
+              blocker_reason: data.blocker_reason ?? null,
+              flags: data.flags && data.flags.length > 0 ? data.flags : ["stuck"],
+            });
+            addItem(item);
+            selectAndReveal(item.id);
+            if (selectedItem) {
+              await api.post("/item-edges", {
+                source_item_id: selectedItem.id,
+                target_item_id: item.id,
+                relationship: "waiting_on",
+              });
+              await api.post("/bookmarks", {
+                item_id: selectedItem.id,
+                page,
+                quote: text,
+                note: `Waiting on: ${data.title}`,
+                spawned_item_id: item.id,
+              });
+              setBookmarkRefreshNonce((n) => n + 1);
+            }
+            break;
+          }
           case "bookmark": {
             await api.post("/bookmarks", {
               item_id: selectedItem?.id,
@@ -623,22 +915,49 @@ function App() {
             setBookmarkRefreshNonce((n) => n + 1);
             break;
           }
-          case "spawn_note":
+          case "spawn_llm_summary": {
+            if (!selectedItem) break;
+            const item = await api.post<ItemData>("/llm/spawn-summary", {
+              parent_item_id: selectedItem.id,
+              selected_text: text,
+              page,
+              custom_title: data.title.startsWith("Bookmark") ? undefined : data.title,
+              is_local: data.is_local ?? false,
+              flags: data.flags ?? [],
+            });
+            addItem(item);
+            selectAndReveal(item.id);
+            setBookmarkRefreshNonce((n) => n + 1);
+            break;
+          }
+          case "spawn_notebook": {
+            const item = await api.post<ItemData>("/llm/notebooks/create", {
+              title: data.title.startsWith("Bookmark") ? `Notebook: ${text.slice(0, 30)}` : data.title,
+              parent_item_id: selectedItem?.id,
+              initial_text: text,
+              is_local: data.is_local ?? false,
+              flags: data.flags ?? [],
+            });
+            addItem(item);
+            selectAndReveal(item.id);
+            break;
+          }
           case "spawn_branch": {
             const item = await api.post<ItemData>("/items", {
               title: data.title,
               type: "note",
               parent_item_id: selectedItem?.id,
               summary: text,
+              is_local: data.is_local ?? false,
+              flags: data.flags ?? [],
             });
             addItem(item);
-            if (spawnAction.type === "spawn_branch") {
-              await api.post("/item-edges", {
-                source_item_id: selectedItem?.id,
-                target_item_id: item.id,
-                relationship: "spawned_from",
-              });
-            }
+            selectAndReveal(item.id);
+            await api.post("/item-edges", {
+              source_item_id: selectedItem?.id,
+              target_item_id: item.id,
+              relationship: "spawned_from",
+            });
             break;
           }
           case "mark_progress": {
@@ -667,6 +986,28 @@ function App() {
     setTitleDialog(false);
     setNodeMenu(null);
   }, [nodeMenu, updateItem]);
+
+  const handleToggleNodeFlag = useCallback(
+    async (itemId: string, flagId: FlagType) => {
+      const targetItem = items.find((i) => i.id === itemId);
+      if (!targetItem) return;
+      const currentFlags = targetItem.flags || [];
+      let nextFlags: string[];
+      if (currentFlags.includes(flagId)) {
+        nextFlags = currentFlags.filter((f) => f !== flagId);
+      } else {
+        nextFlags = [...currentFlags, flagId];
+      }
+      const updatedDate = new Date().toISOString();
+      updateItem(itemId, { flags: nextFlags, last_accessed_at: updatedDate });
+      try {
+        await api.put<ItemData>(`/items/${itemId}`, { flags: nextFlags });
+      } catch (err) {
+        console.error("Failed to update item flag:", err);
+      }
+    },
+    [items, updateItem]
+  );
 
   const handleBackgroundContextMenu = useCallback((graphX: number, graphY: number, _screenX: number, _screenY: number) => {
     setAddDialogPosition({ graphX, graphY });
@@ -700,52 +1041,93 @@ function App() {
     }
   }, [updateItem]);
 
-  const handleAddItem = useCallback(async (data: { title: string; type: string; file_path?: string; source_url?: string }) => {
-    const spawnSource = addSpawnSource; // Capture state synchronously before awaits!
-    const payload: Record<string, unknown> = {
-      ...data,
-      parent_item_id: addParentId,
-    };
+  const handleAddItem = useCallback(async (data: { title: string; type: string; file_path?: string; source_url?: string; is_local?: boolean; flags?: string[] }) => {
+    const spawnSource = addSpawnSource;
+    const parentItem = addParentId ? items.find((i) => i.id === addParentId) : null;
 
-    if (addDialogPosition && addParentId == null) {
-      payload.graph_x = addDialogPosition.graphX;
-      payload.graph_y = addDialogPosition.graphY;
-    } else if (addParentId) {
-      const parent = findItemPosition(addParentId);
-      if (parent) {
-        payload.graph_x = (parent.x ?? 0) + 140;
-        payload.graph_y = (parent.y ?? 0) + 110;
-      }
-    } else if (selectedItem) {
-      const selectedPos = findItemPosition(selectedItem.id);
-      if (selectedPos) {
-        payload.graph_x = (selectedPos.x ?? 0) + 100;
-        payload.graph_y = (selectedPos.y ?? 0) + 100;
-      }
-    }
-
-    const item = await api.post<ItemData>("/items", payload);
-    addItem(item);
-
-    if (spawnSource) {
-      try {
-        await api.post("/bookmarks", {
-          item_id: spawnSource.itemId,
-          page: spawnSource.page,
-          quote: spawnSource.quote,
-          note: `Spawned child: ${item.title}`,
-          spawned_item_id: item.id,
+    try {
+      if (data.type === "llm-summary" && addParentId) {
+        setStatus("saving...");
+        const newSummaryItem = await api.post<ItemData>("/llm/spawn-summary", {
+          parent_item_id: addParentId,
+          selected_text: parentItem?.summary || parentItem?.title,
+          custom_title: data.title || `Summary: ${truncateTitle(parentItem?.title || "")}`,
+          is_local: data.is_local ?? false,
+          flags: data.flags ?? [],
         });
-        setBookmarkRefreshNonce((n) => n + 1);
-      } catch (err) {
-        console.error("Failed to create origin bookmark:", err);
+        addItem(newSummaryItem);
+        selectAndReveal(newSummaryItem.id);
+        closeAddDialog();
+        await loadData();
+        return;
       }
-    }
 
-    selectItem(item.id);
-    closeAddDialog();
-    void loadData();
-  }, [addItem, selectItem, addParentId, addDialogPosition, closeAddDialog, findItemPosition, selectedItem, addSpawnSource, loadData]);
+      if (data.type === "notebook") {
+        setStatus("saving...");
+        const notebookItem = await api.post<ItemData>("/llm/notebooks/create", {
+          title: data.title || `Notebook: ${truncateTitle(parentItem?.title || "Untitled")}`,
+          parent_item_id: addParentId,
+          initial_text: parentItem?.summary || parentItem?.title,
+          is_local: data.is_local ?? false,
+          flags: data.flags ?? [],
+        });
+        addItem(notebookItem);
+        selectAndReveal(notebookItem.id);
+        closeAddDialog();
+        await loadData();
+        return;
+      }
+
+      const payload: Record<string, unknown> = {
+        ...data,
+        parent_item_id: addParentId,
+        is_local: data.is_local ?? false,
+        flags: data.flags ?? [],
+      };
+
+      if (addDialogPosition && addParentId == null) {
+        payload.graph_x = addDialogPosition.graphX;
+        payload.graph_y = addDialogPosition.graphY;
+      } else if (addParentId) {
+        const parent = findItemPosition(addParentId);
+        if (parent) {
+          payload.graph_x = (parent.x ?? 0) + 140;
+          payload.graph_y = (parent.y ?? 0) + 110;
+        }
+      } else if (selectedItem) {
+        const selectedPos = findItemPosition(selectedItem.id);
+        if (selectedPos) {
+          payload.graph_x = (selectedPos.x ?? 0) + 100;
+          payload.graph_y = (selectedPos.y ?? 0) + 100;
+        }
+      }
+
+      const item = await api.post<ItemData>("/items", payload);
+      addItem(item);
+
+      if (spawnSource) {
+        try {
+          await api.post("/bookmarks", {
+            item_id: spawnSource.itemId,
+            page: spawnSource.page,
+            quote: spawnSource.quote,
+            note: `Spawned child: ${item.title}`,
+            spawned_item_id: item.id,
+          });
+          setBookmarkRefreshNonce((n) => n + 1);
+        } catch (err) {
+          console.error("Failed to create origin bookmark:", err);
+        }
+      }
+
+      selectAndReveal(item.id);
+      closeAddDialog();
+      await loadData();
+    } catch (e) {
+      console.error("Failed to add item:", e);
+      setStatus("error");
+    }
+  }, [addItem, selectAndReveal, items, addParentId, addDialogPosition, closeAddDialog, findItemPosition, selectedItem, addSpawnSource, loadData, setStatus]);
 
   const focusItemInGraph = useCallback((itemId: string) => {
     selectAndReveal(itemId);
@@ -806,98 +1188,341 @@ function App() {
     openAddDialog({ parentId: item?.parent_item_id ?? null });
   }, [items, openAddDialog]);
 
-  const showDetail = selectedItem != null && !hasReader;
+  const handleSpawnNodeLLMSummary = useCallback(async (itemId: string) => {
+    setNodeMenu(null);
+    setNodeSubmenu(null);
+    clearNodeSubmenuCloseTimer();
+
+    const targetItem = items.find((i) => i.id === itemId);
+    if (!targetItem) return;
+
+    try {
+      setStatus("saving...");
+      const newSummaryItem = await api.post<ItemData>("/llm/spawn-summary", {
+        parent_item_id: targetItem.id,
+        selected_text: targetItem.summary || targetItem.title,
+        custom_title: `Summary: ${truncateTitle(targetItem.title)}`,
+      });
+      addItem(newSummaryItem);
+      selectAndReveal(newSummaryItem.id);
+      await loadData();
+    } catch (e) {
+      console.error("Failed to spawn LLM summary for node:", e);
+      setStatus("error");
+    }
+  }, [items, addItem, selectAndReveal, loadData, setStatus, clearNodeSubmenuCloseTimer]);
+
+  const handleSpawnNodeNotebook = useCallback(async (itemId: string) => {
+    setNodeMenu(null);
+    setNodeSubmenu(null);
+    clearNodeSubmenuCloseTimer();
+
+    const targetItem = items.find((i) => i.id === itemId);
+    if (!targetItem) return;
+
+    try {
+      setStatus("saving...");
+      const notebookItem = await api.post<ItemData>("/llm/notebooks/create", {
+        title: `Notebook: ${truncateTitle(targetItem.title)}`,
+        parent_item_id: targetItem.id,
+        initial_text: targetItem.summary || targetItem.title,
+      });
+      addItem(notebookItem);
+      selectAndReveal(notebookItem.id);
+      await loadData();
+    } catch (e) {
+      console.error("Failed to spawn Notebook for node:", e);
+      setStatus("error");
+    }
+  }, [items, addItem, selectAndReveal, loadData, setStatus, clearNodeSubmenuCloseTimer]);
 
   const maxSidebarWidth = rootRef.current ? Math.max(240, rootRef.current.clientWidth - 320) : 520;
   const maxGraphWidth = graphAreaRef.current ? Math.max(260, graphAreaRef.current.clientWidth - 240) : 1200;
 
   const renderTree = (parentId: string | null, depth: number) => {
     const children = childrenByParent.get(parentId) ?? [];
-    return children.map((item) => (
-      <div key={item.id}>
-        <div className="flex items-center gap-1" style={{ paddingLeft: `${4 + depth * 16}px` }}>
-          {(childrenByParent.get(item.id) ?? []).length > 0 ? (
+    return children.map((item) => {
+      const itemChildren = childrenByParent.get(item.id) ?? [];
+      const hasChildren = itemChildren.length > 0;
+      const isExpanded = expandedIds.has(item.id);
+
+      return (
+        <div key={item.id}>
+          <div className="flex items-center gap-1 transition-opacity duration-200" style={{ paddingLeft: `${4 + depth * 16}px`, opacity: item.opacity ?? 1.0 }}>
+            {hasChildren ? (
+              <button
+                type="button"
+                onMouseDown={(e) => {
+                  e.stopPropagation();
+                  e.preventDefault();
+                  toggleItemExpansion(item.id);
+                }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  e.preventDefault();
+                }}
+                className="w-5 h-5 text-[11px] font-bold text-gray-400 hover:text-white hover:bg-gray-700 rounded flex items-center justify-center shrink-0 cursor-pointer select-none"
+                title={isExpanded ? "Collapse" : "Expand"}
+              >
+                {isExpanded ? "−" : "+"}
+              </button>
+            ) : (
+              <span className="w-5 h-5 shrink-0" />
+            )}
+
             <button
-              type="button"
-              onClick={() => {
-                if (collapsedIds.has(item.id)) {
-                  expandItem(item.id);
-                } else {
-                  collapseItem(item.id);
+              onClick={() => selectAndReveal(item.id)}
+              onDoubleClick={(e) => {
+                e.stopPropagation();
+                if (hasChildren) {
+                  toggleItemExpansion(item.id);
                 }
               }}
-              className="w-4 h-4 text-[10px] text-gray-400 hover:text-white shrink-0"
-              title={collapsedIds.has(item.id) ? "Expand" : "Collapse"}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                selectAndReveal(item.id);
+                handleNodeContextMenu(item.id, e.clientX, e.clientY);
+              }}
+              className={`flex items-center gap-2 w-full text-left px-2 py-1 rounded text-sm hover:bg-gray-700 ${
+                selectedItemId === item.id ? "bg-blue-800 text-blue-100 font-semibold" : "text-gray-300"
+              }`}
             >
-              {collapsedIds.has(item.id) ? "+" : "-"}
+              <span
+                className="w-2 h-2 rounded-full shrink-0"
+                style={{ backgroundColor: `hsl(${Math.round((item.progress / 100) * 120)}, 80%, 55%)` }}
+              />
+              <span className="text-[10px] text-gray-500 w-10 shrink-0 uppercase">{item.type}</span>
+              <span className="truncate flex-1" title={item.title}>{truncateTitle(item.title)}</span>
+              {hasChildren && (
+                <span
+                  onMouseDown={(e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    toggleItemExpansion(item.id);
+                  }}
+                  className="text-[10px] text-gray-400 hover:text-white bg-gray-800 hover:bg-gray-700 px-1.5 py-0.5 rounded-full shrink-0 cursor-pointer"
+                  title={isExpanded ? "Collapse" : "Expand"}
+                >
+                  {itemChildren.length}
+                </span>
+              )}
             </button>
-          ) : (
-            <span className="w-4 h-4 shrink-0" />
-          )}
-
-          <button
-            onClick={() => selectAndReveal(item.id)}
-            onContextMenu={(e) => {
-              e.preventDefault();
-              selectAndReveal(item.id);
-              handleNodeContextMenu(item.id, e.clientX, e.clientY);
-            }}
-            className={`flex items-center gap-2 w-full text-left px-2 py-1 rounded text-sm hover:bg-gray-700 ${
-              selectedItemId === item.id ? "bg-blue-800 text-blue-100" : "text-gray-300"
-            }`}
-          >
-            <span
-              className="w-2 h-2 rounded-full shrink-0"
-              style={{ backgroundColor: `hsl(${Math.round((item.progress / 100) * 120)}, 80%, 55%)` }}
-            />
-            <span className="text-[10px] text-gray-500 w-10 shrink-0 uppercase">{item.type}</span>
-            <span className="truncate">{item.title}</span>
-          </button>
+          </div>
+          {isExpanded && renderTree(item.id, depth + 1)}
         </div>
-        {!collapsedIds.has(item.id) && renderTree(item.id, depth + 1)}
-      </div>
-    ));
+      );
+    });
   };
 
+  const renderSidebarContent = () => (
+    <>
+      <div className="p-3 border-b border-gray-700">
+        <SearchBar onSelect={(id) => selectAndReveal(id)} />
+      </div>
+      <div className="flex-1 overflow-y-auto p-2">
+        <h3 className="text-xs uppercase tracking-wider text-gray-500 mb-2 px-2">
+          Items
+        </h3>
+        <div className="flex flex-col gap-0.5">
+          {items.length === 0 && (
+            <p className="text-gray-500 text-sm px-2">No items yet</p>
+          )}
+          {renderTree(null, 0)}
+        </div>
+      </div>
+    </>
+  );
+
+  const renderGraphContent = () => (
+    <div
+      className="w-full h-full min-h-[300px]"
+      onContextMenu={items.length === 0 ? (e) => {
+        e.preventDefault();
+        handleBackgroundContextMenu(e.nativeEvent.offsetX, e.nativeEvent.offsetY, e.clientX, e.clientY);
+      } : undefined}
+    >
+      {items.length > 0 ? (
+        <ItemGraph
+          items={visibleItems}
+          edges={visibleGraphEdges}
+          selectedId={selectedItemId}
+          selectedIds={selectedItemIds}
+          hasChildrenIds={hasChildrenIds}
+          expandedIds={expandedIds}
+          onToggleExpand={toggleItemExpansion}
+          focusItemId={focusRequest.itemId}
+          focusNonce={focusRequest.nonce}
+          highlightNodeId={highlightNodeId}
+          onSelect={selectAndReveal}
+          onToggleSelect={toggleSelectItem}
+          onOpenMergeModal={handleOpenMergeModal}
+          onClearMultiSelect={clearMultiSelect}
+          onNodeContextMenu={handleNodeContextMenu}
+          onBackgroundContextMenu={handleBackgroundContextMenu}
+          onNodeDragEnd={handleNodeDragEnd}
+          onGraphPositionsCommit={handleGraphPositionsCommit}
+        />
+
+      ) : (
+        <div className="flex items-center justify-center h-full text-gray-600 text-xs">
+          No items yet - right-click to add one
+        </div>
+      )}
+    </div>
+  );
+
+  const activeUnresolvedBlockers = useMemo(() => {
+    if (!selectedItem) return [];
+    const waitingTargetIds = new Set(
+      itemEdges.filter((e) => e.source_item_id === selectedItem.id && e.relationship === "waiting_on").map((e) => e.target_item_id)
+    );
+    return items.filter(
+      (i) => (waitingTargetIds.has(i.id) || i.parent_item_id === selectedItem.id) && !i.is_resolved && (i.blocker_reason != null || (i.flags && i.flags.includes("stuck")))
+    );
+  }, [selectedItem, items, itemEdges]);
+
+  const renderReaderContent = () => (
+    <div className="flex-1 min-h-0 flex flex-col min-w-0 relative h-full">
+      {activeUnresolvedBlockers.length > 0 && (
+        <div className="bg-amber-950 border-b-2 border-amber-500 px-4 py-1.5 flex items-center justify-between text-xs text-amber-200 shrink-0 shadow-md z-10">
+          <div className="flex items-center gap-2 truncate">
+            <span className="text-sm">⚠️</span>
+            <span className="font-extrabold uppercase tracking-wide">
+              {activeUnresolvedBlockers.length} Prerequisite Blocker{activeUnresolvedBlockers.length > 1 ? "s" : ""}:
+            </span>
+            <span className="italic truncate text-slate-200">
+              {activeUnresolvedBlockers.map((b) => b.title).join(", ")}
+            </span>
+          </div>
+          <button
+            onClick={() => selectAndReveal(activeUnresolvedBlockers[0].id)}
+            className="px-2 py-0.5 rounded bg-amber-600 hover:bg-amber-500 text-black font-bold text-[11px] shrink-0 transition-colors"
+          >
+            Review Blocker ➔
+          </button>
+        </div>
+      )}
+      {isScratchPad && selectedItem ? (
+        <ScratchPad
+          resource={selectedItem}
+          onUpdate={updateItem}
+        />
+      ) : isLatex && selectedItem ? (
+        <LatexView resource={selectedItem} />
+      ) : isNotebook && selectedItem ? (
+        <NotebookView
+          resource={selectedItem}
+          onUpdate={updateItem}
+        />
+      ) : useAPdfjs && selectedItem ? (
+        <APDF
+          fileUrl={pdfUrl}
+          currentPage={pdfPage}
+          onPageChange={setPdfPage}
+          onTotalPages={setPdfTotalPages}
+          onSelectionAction={handleAPdfSelectionAction}
+          highlightText={pdfHighlightText}
+        />
+      ) : usePdfjs && selectedItem ? (
+        <div className="flex-1 min-h-0 flex flex-col">
+          <PDFContainer
+            fileUrl={pdfUrl}
+            currentPage={pdfPage}
+            onPageChange={setPdfPage}
+            onTotalPages={setPdfTotalPages}
+            onTextSelect={handleTextSelect}
+          />
+        </div>
+      ) : hasReader && selectedItem ? (
+        <div className="flex-1 min-h-0 flex flex-col">
+          <ReadPane
+            fileUrl={pdfUrl}
+            sourceUrl={selectedItem.source_url}
+            title={selectedItem.title}
+          />
+        </div>
+      ) : isRichNote && selectedItem ? (
+        <RichNoteView resource={selectedItem} onUpdate={updateItem} />
+      ) : (
+        <div className="flex-1 flex items-center justify-center text-gray-600">
+          {items.length === 0
+            ? "Use Menu -> Add to add your first item"
+            : "Select an item from the sidebar or graph"}
+        </div>
+      )}
+    </div>
+  );
+
+  const renderDetailsContent = () => (
+    selectedItem ? (
+      <div className="flex-1 flex flex-col min-h-0 overflow-y-auto">
+        <ResourceDetail
+          resource={selectedItem}
+          onUpdate={updateItem}
+          onClose={() => selectItem(null)}
+          onSelectParent={handleSelectParent}
+          onSpawnLLMSummary={handleSpawnNodeLLMSummary}
+        />
+        <div className="px-4 pb-4">
+          <BookmarkList
+            itemId={selectedItem.id}
+            refreshNonce={bookmarkRefreshNonce}
+            onSelectSpawned={selectAndReveal}
+            onSelectBookmark={handleSelectBookmark}
+          />
+        </div>
+      </div>
+    ) : (
+      <div className="flex-1 flex items-center justify-center text-gray-500 text-sm p-4">
+        Select an item to view details
+      </div>
+    )
+  );
+
+  const isGraphDockedInMain = showGraph && floatGraph === "docked";
+  const isReaderDockedInMain = showReader && floatReader === "docked";
+  const isDetailsDockedInMain = showDetails && floatDetails === "docked";
+
   return (
-    <div ref={rootRef} className="flex h-full w-full bg-gray-900 text-gray-100">
-      {showSidebar && (
+    <div ref={rootRef} className="flex h-full w-full bg-gray-900 text-gray-100 overflow-hidden">
+      {showSidebar && floatSidebar === "docked" && (
         <aside className="border-r border-gray-700 flex flex-col shrink-0" style={{ width: sidebarWidth }}>
-          <header className="p-3 border-b border-gray-700 flex items-center justify-between">
+          <header className="p-3 border-b border-gray-700 flex items-center justify-between shrink-0">
             <div>
               <h1 className="text-base font-semibold">Research Tree</h1>
               <span className={`text-xs ${status === "ok" ? "text-green-400" : "text-red-400"}`}>
                 API {status}
               </span>
             </div>
-            <button
-              onClick={() => setShowSidebar(false)}
-              className="text-gray-500 hover:text-white text-sm"
-              title="Hide items pane"
-            >
-              &laquo;
-            </button>
-          </header>
-
-          <div className="p-3 border-b border-gray-700">
-            <SearchBar onSelect={(id) => selectAndReveal(id)} />
-          </div>
-
-          <div className="flex-1 overflow-y-auto p-2">
-            <h3 className="text-xs uppercase tracking-wider text-gray-500 mb-2 px-2">
-              Items
-            </h3>
-            <div className="flex flex-col gap-0.5">
-              {items.length === 0 && (
-                <p className="text-gray-500 text-sm px-2">No items yet</p>
-              )}
-              {renderTree(null, 0)}
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setFloatSidebar((f) => (f === "docked" ? "floating" : f === "floating" ? "popout" : "docked"))}
+                className="px-2 py-0.5 text-xs text-gray-400 hover:text-gray-200 border border-gray-700 rounded"
+                title="Toggle Docked / Floating / Desktop Popout"
+              >
+                {floatSidebar === "docked" ? "Float" : floatSidebar === "floating" ? "Popout ↗" : "Dock"}
+              </button>
+              <button
+                onClick={savedLayout !== null ? restoreLayout : () => showOnlyPane("sidebar")}
+                className={`px-2 py-0.5 text-xs border border-gray-700 rounded ${savedLayout !== null ? "text-blue-400 hover:text-blue-200 border-blue-600" : "text-gray-400 hover:text-gray-200"}`}
+                title={savedLayout !== null ? "Restore saved layout" : "Show only this pane"}
+              >
+                {savedLayout !== null ? "Restore" : "Only"}
+              </button>
+              <button
+                onClick={() => setShowSidebar(false)}
+                className="px-2 py-0.5 text-xs text-gray-400 hover:text-white border border-gray-700 rounded"
+                title="Hide items pane"
+              >
+                ✕
+              </button>
             </div>
-          </div>
+          </header>
+          {renderSidebarContent()}
         </aside>
       )}
 
-      {showSidebar && (
+      {showSidebar && floatSidebar === "docked" && (
         <GraphSplitter
           onWidthChange={setSidebarWidth}
           minWidth={220}
@@ -910,19 +1535,19 @@ function App() {
         />
       )}
 
-      {!showSidebar && (
+      {(!showSidebar || floatSidebar !== "docked") && (
         <button
-          onClick={() => setShowSidebar(true)}
-          className="absolute left-0 top-1/2 z-20 bg-gray-800 hover:bg-gray-700 px-1 py-8 rounded-r text-gray-400"
+          onClick={() => { setShowSidebar(true); setFloatSidebar("docked"); }}
+          className="absolute left-0 top-1/2 z-20 bg-gray-800 hover:bg-gray-700 px-1 py-8 rounded-r text-gray-400 border border-l-0 border-gray-700"
           title="Show items pane"
         >
           &raquo;
         </button>
       )}
 
-      <main className="flex-1 flex flex-col min-w-0">
+      <main className="flex-1 flex flex-col min-w-0 h-full">
         <header className="border-b border-gray-700 px-4 py-1.5 text-xs text-gray-400 flex items-center gap-3 shrink-0">
-          <div className="relative">
+          <div className="relative flex items-center gap-2">
             <button
               onClick={() => {
                 const next = !menuOpen;
@@ -933,6 +1558,8 @@ function App() {
             >
               Menu
             </button>
+
+            <CollectionSelector onCollectionSwitched={loadData} selectedItemId={selectedItemId} />
 
             {menuOpen && (
               <>
@@ -968,6 +1595,45 @@ function App() {
                         >
                           {showReader ? "Hide" : "Show"} Reader Pane
                         </button>
+                        <button
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-gray-700"
+                          onMouseDown={() => setShowDetails((v) => !v)}
+                        >
+                          {showDetails ? "Hide" : "Show"} Details Pane
+                        </button>
+                        <div className="border-t border-gray-700 my-1" />
+                        <button
+                          className="w-full text-left px-3 py-1.5 text-xs text-gray-300 hover:bg-gray-700"
+                          onMouseDown={() => showOnlyPane("sidebar")}
+                        >
+                          Show Only Items Pane
+                        </button>
+                        <button
+                          className="w-full text-left px-3 py-1.5 text-xs text-gray-300 hover:bg-gray-700"
+                          onMouseDown={() => showOnlyPane("graph")}
+                        >
+                          Show Only Graph Pane
+                        </button>
+                        <button
+                          className="w-full text-left px-3 py-1.5 text-xs text-gray-300 hover:bg-gray-700"
+                          onMouseDown={() => showOnlyPane("reader")}
+                        >
+                          Show Only Reader Pane
+                        </button>
+                        <button
+                          className="w-full text-left px-3 py-1.5 text-xs text-gray-300 hover:bg-gray-700"
+                          onMouseDown={() => showOnlyPane("details")}
+                        >
+                          Show Only Details Pane
+                        </button>
+                        <div className="border-t border-gray-700 my-1" />
+                        <button
+                          disabled={savedLayout === null}
+                          className={`w-full text-left px-3 py-1.5 text-xs ${savedLayout !== null ? "text-blue-400 hover:bg-gray-700 font-semibold" : "text-gray-500 cursor-not-allowed"}`}
+                          onMouseDown={() => restoreLayout()}
+                        >
+                          Restore Saved Layout
+                        </button>
                       </div>
                     )}
                   </div>
@@ -996,10 +1662,45 @@ function App() {
                       </div>
                     )}
                   </div>
+
+                  <div className="border-t border-gray-700 my-1" />
+                  <button
+                    className="w-full text-left px-3 py-2 text-sm hover:bg-gray-700 text-blue-300 font-medium"
+                    onMouseDown={() => { setMenuOpen(false); setShowSettingsDialog(true); }}
+                  >
+                    Settings ⚙
+                  </button>
                 </div>
               </>
             )}
           </div>
+
+          <button
+            onClick={() => setShowSettingsDialog(true)}
+            className="bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-200 px-2.5 py-1 rounded text-xs flex items-center gap-1 font-medium"
+            title="Open Settings & Preferences"
+          >
+            Settings ⚙
+          </button>
+
+          {showGraph && (
+            <div className="flex items-center gap-1 ml-1">
+              <button
+                onClick={() => setFloatGraph((f) => (f === "docked" ? "floating" : f === "floating" ? "popout" : "docked"))}
+                className="px-2 py-0.5 text-xs text-gray-400 hover:text-gray-200 border border-gray-700 rounded"
+                title="Toggle Docked / Floating / Desktop Popout"
+              >
+                {floatGraph === "docked" ? "Float Graph" : floatGraph === "floating" ? "Popout Graph ↗" : "Dock Graph"}
+              </button>
+              <button
+                onClick={savedLayout !== null ? restoreLayout : () => showOnlyPane("graph")}
+                className={`px-2 py-0.5 text-xs border border-gray-700 rounded ${savedLayout !== null ? "text-blue-400 hover:text-blue-200 border-blue-600" : "text-gray-400 hover:text-gray-200"}`}
+                title={savedLayout !== null ? "Restore saved layout" : "Show only graph pane"}
+              >
+                {savedLayout !== null ? "Restore" : "Only"}
+              </button>
+            </div>
+          )}
 
           {selectedItem && hasPdf && showReader && (
             <div className="flex items-center gap-1 ml-1 bg-gray-700 rounded p-0.5">
@@ -1030,8 +1731,29 @@ function App() {
             </div>
           )}
 
+          {showReader && (
+            <div className="flex items-center gap-1 ml-1">
+              <button
+                onClick={() => setFloatReader((f) => (f === "docked" ? "floating" : f === "floating" ? "popout" : "docked"))}
+                className="px-2 py-0.5 text-xs text-gray-400 hover:text-gray-200 border border-gray-700 rounded"
+                title="Toggle Docked / Floating / Desktop Popout"
+              >
+                {floatReader === "docked" ? "Float Reader" : floatReader === "floating" ? "Popout Reader ↗" : "Dock Reader"}
+              </button>
+              <button
+                onClick={savedLayout !== null ? restoreLayout : () => showOnlyPane("reader")}
+                className={`px-2 py-0.5 text-xs border border-gray-700 rounded ${savedLayout !== null ? "text-blue-400 hover:text-blue-200 border-blue-600" : "text-gray-400 hover:text-gray-200"}`}
+                title={savedLayout !== null ? "Restore saved layout" : "Show only reader pane"}
+              >
+                {savedLayout !== null ? "Restore" : "Only"}
+              </button>
+            </div>
+          )}
+
           {selectedItem && (
-            <span className="font-medium text-gray-200 truncate">{selectedItem.title}</span>
+            <span className="font-medium text-gray-200 truncate" title={selectedItem.title}>
+              {truncateTitle(selectedItem.title)}
+            </span>
           )}
           {!selectedItem && (
             <span>Select an item from the sidebar or graph</span>
@@ -1039,43 +1761,16 @@ function App() {
         </header>
 
         <div ref={graphAreaRef} className="flex-1 flex min-h-0">
-          {showGraph && (
+          {isGraphDockedInMain && (
             <div
               className="shrink-0 overflow-hidden border-r border-gray-700"
-              style={{ width: showReader ? graphWidth : "100%" }}
+              style={{ width: isReaderDockedInMain || (isDetailsDockedInMain && !isReaderDockedInMain) ? graphWidth : "100%" }}
             >
-              <div
-                className="w-full h-full"
-                onContextMenu={items.length === 0 ? (e) => {
-                  e.preventDefault();
-                  handleBackgroundContextMenu(e.nativeEvent.offsetX, e.nativeEvent.offsetY, e.clientX, e.clientY);
-                } : undefined}
-              >
-                {items.length > 0 ? (
-                  <ItemGraph
-                    items={visibleItems}
-                    edges={visibleGraphEdges}
-                    selectedId={selectedItemId}
-                    hasChildrenIds={hasChildrenIds}
-                    focusItemId={focusRequest.itemId}
-                    focusNonce={focusRequest.nonce}
-                    highlightNodeId={highlightNodeId}
-                    onSelect={selectAndReveal}
-                    onNodeContextMenu={handleNodeContextMenu}
-                    onBackgroundContextMenu={handleBackgroundContextMenu}
-                    onNodeDragEnd={handleNodeDragEnd}
-                    onGraphPositionsCommit={handleGraphPositionsCommit}
-                  />
-                ) : (
-                  <div className="flex items-center justify-center h-full text-gray-600 text-xs">
-                    No items yet - right-click to add one
-                  </div>
-                )}
-              </div>
+              {renderGraphContent()}
             </div>
           )}
 
-          {showGraph && showReader && (
+          {isGraphDockedInMain && (isReaderDockedInMain || (isDetailsDockedInMain && !isReaderDockedInMain)) && (
             <GraphSplitter
               onWidthChange={setGraphWidth}
               minWidth={240}
@@ -1087,74 +1782,54 @@ function App() {
             />
           )}
 
-          {showReader && (
-            <div className={`flex-1 flex min-w-0 ${detailDock === "right" && selectedItem && (usePdfjs || hasReader) ? "flex-row" : "flex-col"}`}>
-              <div className="flex-1 min-h-0 flex flex-col min-w-0 relative">
-                {isScratchPad && selectedItem ? (
-                  <ScratchPad
-                    resource={selectedItem}
-                    onUpdate={updateItem}
-                  />
-                ) : isLatex && selectedItem ? (
-                  <LatexView resource={selectedItem} />
-                ) : useAPdfjs && selectedItem ? (
-                  <APDF
-                    fileUrl={pdfUrl}
-                    currentPage={pdfPage}
-                    onPageChange={setPdfPage}
-                    onTotalPages={setPdfTotalPages}
-                    onSelectionAction={handleAPdfSelectionAction}
-                    highlightText={pdfHighlightText}
-                  />
-                ) : usePdfjs && selectedItem ? (
-                  <div className="flex-1 min-h-0 flex flex-col">
-                    <PDFContainer
-                      fileUrl={pdfUrl}
-                      currentPage={pdfPage}
-                      onPageChange={setPdfPage}
-                      onTotalPages={setPdfTotalPages}
-                      onTextSelect={handleTextSelect}
-                    />
-                  </div>
-                ) : hasReader && selectedItem ? (
-                  <div className="flex-1 min-h-0 flex flex-col">
-                    <ReadPane
-                      fileUrl={pdfUrl}
-                      sourceUrl={selectedItem.source_url}
-                      title={selectedItem.title}
-                    />
-                  </div>
-                ) : null}
+          {isReaderDockedInMain && (
+            <div className={`flex-1 flex min-w-0 ${isDetailsDockedInMain && detailDock === "right" ? "flex-row" : "flex-col"}`}>
+              {renderReaderContent()}
 
-                {/* Bottom Docked Details Panel */}
-                {selectedItem && (usePdfjs || hasReader) && detailDock === "bottom" && (
-                  <div className="shrink-0 border-t border-gray-700 bg-gray-850 flex flex-col">
-                    {detailExpanded && (
-                      <div
-                        className="h-1 bg-gray-700 hover:bg-blue-500 cursor-row-resize shrink-0 transition-colors touch-none"
-                        onPointerDown={(e) => {
-                          e.preventDefault();
-                          const startY = e.clientY;
-                          const startHeight = detailHeight;
-                          const handlePointerMove = (moveEvent: PointerEvent) => {
-                            const newHeight = Math.max(120, Math.min(600, startHeight - (moveEvent.clientY - startY)));
-                            setDetailHeight(newHeight);
-                          };
-                          const handlePointerUp = () => {
-                            document.removeEventListener("pointermove", handlePointerMove);
-                            document.removeEventListener("pointerup", handlePointerUp);
-                          };
-                          document.addEventListener("pointermove", handlePointerMove);
-                          document.addEventListener("pointerup", handlePointerUp);
-                        }}
-                      />
-                    )}
-                    <div className="flex items-center justify-between bg-gray-800/50 border-b border-gray-700 shrink-0">
+              {/* Bottom Docked Details Panel */}
+              {isDetailsDockedInMain && detailDock === "bottom" && (
+                <div className="shrink-0 border-t border-gray-700 bg-gray-850 flex flex-col">
+                  {detailExpanded && (
+                    <div
+                      className="h-1 bg-gray-700 hover:bg-blue-500 cursor-row-resize shrink-0 transition-colors touch-none"
+                      onPointerDown={(e) => {
+                        e.preventDefault();
+                        const startY = e.clientY;
+                        const startHeight = detailHeight;
+                        const handlePointerMove = (moveEvent: PointerEvent) => {
+                          const newHeight = Math.max(120, Math.min(600, startHeight - (moveEvent.clientY - startY)));
+                          setDetailHeight(newHeight);
+                        };
+                        const handlePointerUp = () => {
+                          document.removeEventListener("pointermove", handlePointerMove);
+                          document.removeEventListener("pointerup", handlePointerUp);
+                        };
+                        document.addEventListener("pointermove", handlePointerMove);
+                        document.addEventListener("pointerup", handlePointerUp);
+                      }}
+                    />
+                  )}
+                  <div className="flex items-center justify-between bg-gray-800/50 border-b border-gray-700 shrink-0">
+                    <button
+                      onClick={() => setDetailExpanded((d) => !d)}
+                      className="flex-1 flex items-center gap-2 px-4 py-1.5 text-xs text-gray-400 hover:text-gray-200"
+                    >
+                      {detailExpanded ? "▼" : "▶"} Details
+                    </button>
+                    <div className="flex items-center">
                       <button
-                        onClick={() => setDetailExpanded((d) => !d)}
-                        className="flex-1 flex items-center gap-2 px-4 py-1.5 text-xs text-gray-400 hover:text-gray-200"
+                        onClick={() => setFloatDetails((f) => (f === "docked" ? "floating" : f === "floating" ? "popout" : "docked"))}
+                        className="px-3 py-1.5 text-xs text-gray-400 hover:text-gray-200 border-l border-gray-700"
+                        title="Toggle Docked / Floating / Desktop Popout"
                       >
-                        {detailExpanded ? "▼" : "▶"} Details
+                        {floatDetails === "docked" ? "Float" : floatDetails === "floating" ? "Popout ↗" : "Dock"}
+                      </button>
+                      <button
+                        onClick={savedLayout !== null ? restoreLayout : () => showOnlyPane("details")}
+                        className={`px-3 py-1.5 text-xs border-l border-gray-700 ${savedLayout !== null ? "text-blue-400 hover:text-blue-200" : "text-gray-400 hover:text-gray-200"}`}
+                        title={savedLayout !== null ? "Restore saved layout" : "Show only details pane"}
+                      >
+                        {savedLayout !== null ? "Restore" : "Only"}
                       </button>
                       <button
                         onClick={() => setDetailDock("right")}
@@ -1163,31 +1838,25 @@ function App() {
                       >
                         Dock to Side →
                       </button>
+                      <button
+                        onClick={() => setShowDetails(false)}
+                        className="px-3 py-1.5 text-xs text-gray-400 hover:text-gray-200 border-l border-gray-700"
+                        title="Hide details pane"
+                      >
+                        ✕
+                      </button>
                     </div>
-                    {detailExpanded && (
-                      <div style={{ height: `${detailHeight}px` }} className="overflow-y-auto">
-                        <ResourceDetail
-                          resource={selectedItem}
-                          onUpdate={updateItem}
-                          onClose={() => selectItem(null)}
-                          onSelectParent={handleSelectParent}
-                        />
-                        <div className="px-4 pb-4">
-                          <BookmarkList
-                            itemId={selectedItem.id}
-                            refreshNonce={bookmarkRefreshNonce}
-                            onSelectSpawned={selectAndReveal}
-                            onSelectBookmark={handleSelectBookmark}
-                          />
-                        </div>
-                      </div>
-                    )}
                   </div>
-                )}
-              </div>
+                  {detailExpanded && (
+                    <div style={{ height: `${detailHeight}px` }} className="overflow-y-auto flex flex-col">
+                      {renderDetailsContent()}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Right Docked Details Panel */}
-              {selectedItem && (usePdfjs || hasReader) && detailDock === "right" && (
+              {isDetailsDockedInMain && detailDock === "right" && (
                 <>
                   <div
                     className="w-1 bg-gray-700 hover:bg-blue-500 cursor-col-resize shrink-0 transition-colors touch-none"
@@ -1215,94 +1884,194 @@ function App() {
                       <div className="px-4 py-1.5 text-xs text-gray-400 font-semibold">
                         Details
                       </div>
-                      <button
-                        onClick={() => setDetailDock("bottom")}
-                        className="px-3 py-1.5 text-xs text-gray-400 hover:text-gray-200 border-l border-gray-700"
-                        title="Dock to Bottom"
-                      >
-                        Dock to Bottom ↓
-                      </button>
-                    </div>
-                    <div className="flex-1 overflow-y-auto">
-                      <ResourceDetail
-                        resource={selectedItem}
-                        onUpdate={updateItem}
-                        onClose={() => selectItem(null)}
-                        onSelectParent={handleSelectParent}
-                      />
-                      <div className="px-4 pb-4">
-                        <BookmarkList
-                          itemId={selectedItem.id}
-                          refreshNonce={bookmarkRefreshNonce}
-                          onSelectSpawned={selectAndReveal}
-                          onSelectBookmark={handleSelectBookmark}
-                        />
+                      <div className="flex items-center">
+                        <button
+                          onClick={() => setFloatDetails((f) => (f === "docked" ? "floating" : f === "floating" ? "popout" : "docked"))}
+                          className="px-3 py-1.5 text-xs text-gray-400 hover:text-gray-200 border-l border-gray-700"
+                          title="Toggle Docked / Floating / Desktop Popout"
+                        >
+                          {floatDetails === "docked" ? "Float" : floatDetails === "floating" ? "Popout ↗" : "Dock"}
+                        </button>
+                        <button
+                          onClick={savedLayout !== null ? restoreLayout : () => showOnlyPane("details")}
+                          className={`px-3 py-1.5 text-xs border-l border-gray-700 ${savedLayout !== null ? "text-blue-400 hover:text-blue-200" : "text-gray-400 hover:text-gray-200"}`}
+                          title={savedLayout !== null ? "Restore saved layout" : "Show only details pane"}
+                        >
+                          {savedLayout !== null ? "Restore" : "Only"}
+                        </button>
+                        <button
+                          onClick={() => setDetailDock("bottom")}
+                          className="px-3 py-1.5 text-xs text-gray-400 hover:text-gray-200 border-l border-gray-700"
+                          title="Dock to Bottom"
+                        >
+                          Dock to Bottom ↓
+                        </button>
+                        <button
+                          onClick={() => setShowDetails(false)}
+                          className="px-3 py-1.5 text-xs text-gray-400 hover:text-gray-200 border-l border-gray-700"
+                          title="Hide details pane"
+                        >
+                          ✕
+                        </button>
                       </div>
                     </div>
+                    {renderDetailsContent()}
                   </div>
                 </>
               )}
-
-              {!usePdfjs && !hasReader && showDetail && (
-                <div className="flex-1 overflow-y-auto">
-                  <ResourceDetail
-                    resource={selectedItem}
-                    onUpdate={updateItem}
-                    onClose={() => selectItem(null)}
-                    onSelectParent={handleSelectParent}
-                  />
-                  <div className="px-4 pb-4">
-                    <BookmarkList
-                      itemId={selectedItem.id}
-                      refreshNonce={bookmarkRefreshNonce}
-                      onSelectSpawned={selectAndReveal}
-                      onSelectBookmark={handleSelectBookmark}
-                    />
-                  </div>
-                </div>
-              )}
-
-              {!selectedItem && (
-                <div className="flex-1 flex items-center justify-center text-gray-600">
-                  {items.length === 0
-                    ? 'Use Menu -> Add to add your first item'
-                    : "Select an item from the sidebar or graph"}
-                </div>
-              )}
             </div>
           )}
 
-          {!showGraph && !showReader && (
+          {!isReaderDockedInMain && isDetailsDockedInMain && (
+            <div className="flex-1 flex flex-col min-w-0 border-l border-gray-700 bg-gray-850 overflow-hidden">
+              <div className="flex items-center justify-between bg-gray-800/50 border-b border-gray-700 shrink-0 px-4 py-1.5">
+                <div className="text-xs text-gray-400 font-semibold">Details</div>
+                <div className="flex items-center">
+                  <button
+                    onClick={() => setFloatDetails((f) => (f === "docked" ? "floating" : f === "floating" ? "popout" : "docked"))}
+                    className="px-3 py-1 text-xs text-gray-400 hover:text-gray-200 border border-gray-700 rounded mr-2"
+                    title="Toggle Docked / Floating / Desktop Popout"
+                  >
+                    {floatDetails === "docked" ? "Float" : floatDetails === "floating" ? "Popout ↗" : "Dock"}
+                  </button>
+                  <button
+                    onClick={savedLayout !== null ? restoreLayout : () => showOnlyPane("details")}
+                    className={`px-3 py-1 text-xs border border-gray-700 rounded mr-2 ${savedLayout !== null ? "text-blue-400 hover:text-blue-200" : "text-gray-400 hover:text-gray-200"}`}
+                    title={savedLayout !== null ? "Restore saved layout" : "Show only details pane"}
+                  >
+                    {savedLayout !== null ? "Restore" : "Only"}
+                  </button>
+                  <button
+                    onClick={() => setShowDetails(false)}
+                    className="px-2 py-0.5 text-xs text-gray-400 hover:text-white border border-gray-700 rounded"
+                    title="Hide details pane"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+              {renderDetailsContent()}
+            </div>
+          )}
+
+          {!isGraphDockedInMain && !isReaderDockedInMain && !isDetailsDockedInMain && (
             <div className="flex-1 flex items-center justify-center text-gray-600 text-sm">
-              All panes are hidden. Use Menu -&gt; View to show a pane.
+              All main layout panes are hidden or floated. Use Menu -&gt; View to show a pane.
             </div>
-          )}
-
-          {!showReader && (
-            <button
-              onClick={() => setShowReader(true)}
-              className="bg-gray-800 hover:bg-gray-700 px-1 py-8 self-center text-gray-400 border-l border-gray-700"
-              title="Show reader pane"
-            >
-              &laquo;
-            </button>
-          )}
-          {showReader && (
-            <button
-              onClick={() => setShowReader(false)}
-              className="bg-gray-800 hover:bg-gray-700 px-1 py-8 self-center text-gray-400 shrink-0 border-l border-gray-700"
-              title="Hide reader pane"
-            >
-              &raquo;
-            </button>
           )}
         </div>
       </main>
+
+      {/* Floating & Popout Windows */}
+      {floatSidebar === "floating" && (
+        <DraggableFloatingPane
+          title="Items / Tree View"
+          initialX={40}
+          initialY={70}
+          width={340}
+          height={580}
+          onClose={() => setFloatSidebar("docked")}
+          onPopout={() => setFloatSidebar("popout")}
+        >
+          {renderSidebarContent()}
+        </DraggableFloatingPane>
+      )}
+
+      {floatSidebar === "popout" && (
+        <PopoutWindow
+          title="Items / Tree View"
+          onClose={() => setFloatSidebar("docked")}
+          width={380}
+          height={600}
+        >
+          {renderSidebarContent()}
+        </PopoutWindow>
+      )}
+
+      {floatGraph === "floating" && (
+        <DraggableFloatingPane
+          title="Graph View"
+          initialX={160}
+          initialY={60}
+          width={680}
+          height={560}
+          onClose={() => setFloatGraph("docked")}
+          onPopout={() => setFloatGraph("popout")}
+        >
+          {renderGraphContent()}
+        </DraggableFloatingPane>
+      )}
+
+      {floatGraph === "popout" && (
+        <PopoutWindow
+          title="Graph View"
+          onClose={() => setFloatGraph("docked")}
+          width={780}
+          height={620}
+        >
+          {renderGraphContent()}
+        </PopoutWindow>
+      )}
+
+      {floatReader === "floating" && (
+        <DraggableFloatingPane
+          title={selectedItem ? `Working Area: ${selectedItem.title}` : "Working Area"}
+          initialX={280}
+          initialY={70}
+          width={720}
+          height={650}
+          onClose={() => setFloatReader("docked")}
+          onPopout={() => setFloatReader("popout")}
+        >
+          {renderReaderContent()}
+        </DraggableFloatingPane>
+      )}
+
+      {floatReader === "popout" && (
+        <PopoutWindow
+          title={selectedItem ? `Working Area: ${selectedItem.title}` : "Working Area"}
+          onClose={() => setFloatReader("docked")}
+          width={820}
+          height={720}
+        >
+          {renderReaderContent()}
+        </PopoutWindow>
+      )}
+
+      {floatDetails === "floating" && (
+        <DraggableFloatingPane
+          title={selectedItem ? `Details: ${selectedItem.title}` : "Details"}
+          initialX={500}
+          initialY={100}
+          width={440}
+          height={560}
+          onClose={() => setFloatDetails("docked")}
+          onPopout={() => setFloatDetails("popout")}
+        >
+          {renderDetailsContent()}
+        </DraggableFloatingPane>
+      )}
+
+      {floatDetails === "popout" && (
+        <PopoutWindow
+          title={selectedItem ? `Details: ${selectedItem.title}` : "Details"}
+          onClose={() => setFloatDetails("docked")}
+          width={460}
+          height={600}
+        >
+          {renderDetailsContent()}
+        </PopoutWindow>
+      )}
+
+      {showSettingsDialog && (
+        <SettingsDialog onClose={() => setShowSettingsDialog(false)} />
+      )}
 
       {showAddDialog && (
         <AddItemDialog
           initialType={addInitialType}
           initialTitle={addInitialTitle}
+          parentItem={addParentId ? items.find((i) => i.id === addParentId) : null}
           onSubmit={handleAddItem}
           onClose={closeAddDialog}
         />
@@ -1351,25 +2120,37 @@ function App() {
 
             {hasChildrenIds.has(nodeMenu.itemId) && (
               <>
-                {collapsedIds.has(nodeMenu.itemId) ? (
+                {expandedIds.has(nodeMenu.itemId) ? (
                   <button
                     className="w-full text-left px-3 py-2 text-sm hover:bg-gray-700"
-                    onMouseDown={() => expandItem(nodeMenu.itemId)}
+                    onMouseDown={(e) => {
+                      e.stopPropagation();
+                      collapseItem(nodeMenu.itemId);
+                      setNodeMenu(null);
+                    }}
                   >
-                    Expand
+                    Collapse
                   </button>
                 ) : (
                   <button
                     className="w-full text-left px-3 py-2 text-sm hover:bg-gray-700"
-                    onMouseDown={() => collapseItem(nodeMenu.itemId)}
+                    onMouseDown={(e) => {
+                      e.stopPropagation();
+                      expandItem(nodeMenu.itemId);
+                      setNodeMenu(null);
+                    }}
                   >
-                    Collapse
+                    Expand
                   </button>
                 )}
 
                 <button
                   className="w-full text-left px-3 py-2 text-sm hover:bg-gray-700"
-                  onMouseDown={() => expandAllFromItem(nodeMenu.itemId)}
+                  onMouseDown={(e) => {
+                    e.stopPropagation();
+                    expandAllFromItem(nodeMenu.itemId);
+                    setNodeMenu(null);
+                  }}
                 >
                   Expand All
                 </button>
@@ -1406,6 +2187,13 @@ function App() {
                   onMouseLeave={scheduleNodeSubmenuClose}
                 >
                   <button
+                    className="w-full text-left px-3 py-2 text-sm text-amber-300 hover:bg-gray-700 flex items-center justify-between font-medium"
+                    onMouseDown={() => openSpawnWaitingOn(nodeMenu.itemId)}
+                  >
+                    <span>Waiting On... (Blocker)</span>
+                    <span className="text-xs">⏳</span>
+                  </button>
+                  <button
                     className="w-full text-left px-3 py-2 text-sm hover:bg-gray-700"
                     onMouseDown={() => openSpawnChild(nodeMenu.itemId)}
                   >
@@ -1416,6 +2204,20 @@ function App() {
                     onMouseDown={() => openSpawnSibling(nodeMenu.itemId)}
                   >
                     Sibling
+                  </button>
+                  <button
+                    className="w-full text-left px-3 py-2 text-sm hover:bg-gray-700 text-purple-300 flex items-center justify-between"
+                    onMouseDown={() => void handleSpawnNodeLLMSummary(nodeMenu.itemId)}
+                  >
+                    <span>LLM Summary</span>
+                    <span className="text-xs">🤖</span>
+                  </button>
+                  <button
+                    className="w-full text-left px-3 py-2 text-sm hover:bg-gray-700 text-blue-300 flex items-center justify-between"
+                    onMouseDown={() => void handleSpawnNodeNotebook(nodeMenu.itemId)}
+                  >
+                    <span>Notebook</span>
+                    <span className="text-xs">📓</span>
                   </button>
                 </div>
               )}
@@ -1428,6 +2230,172 @@ function App() {
             >
               Change Title
             </button>
+
+            {/* Opacity Submenu */}
+            <div
+              className="relative"
+              onMouseEnter={() => {
+                clearNodeSubmenuCloseTimer();
+                setNodeSubmenu("opacity");
+              }}
+              onMouseLeave={scheduleNodeSubmenuClose}
+            >
+              <button
+                className="w-full text-left px-3 py-2 text-sm hover:bg-gray-700 flex items-center justify-between"
+                onMouseDown={(e) => e.preventDefault()}
+              >
+                <span>👁️ Opacity</span>
+                <span className="text-xs text-slate-400 font-mono">&rsaquo;</span>
+              </button>
+              {nodeSubmenu === "opacity" && (
+                <div
+                  className="absolute left-full top-0 ml-1 z-50 min-w-36 bg-gray-800 border border-gray-600 rounded-lg shadow-xl py-1 text-xs"
+                  onMouseEnter={clearNodeSubmenuCloseTimer}
+                  onMouseLeave={scheduleNodeSubmenuClose}
+                >
+                  {[
+                    { label: "100% (Default)", val: 1.0 },
+                    { label: "75% Dimmed", val: 0.75 },
+                    { label: "50% Half", val: 0.5 },
+                    { label: "25% Low", val: 0.25 },
+                    { label: "10% Faint", val: 0.1 },
+                  ].map((opt) => {
+                    const nodeItem = items.find((i) => i.id === nodeMenu.itemId);
+                    const isSelected = Math.abs((nodeItem?.opacity ?? 1.0) - opt.val) < 0.02;
+                    return (
+                      <button
+                        key={opt.val}
+                        className={`w-full text-left px-3 py-1.5 flex items-center justify-between hover:bg-gray-700 ${
+                          isSelected ? "text-amber-300 font-bold bg-amber-950/30" : "text-gray-300"
+                        }`}
+                        onMouseDown={async (e) => {
+                          e.stopPropagation();
+                          updateItem(nodeMenu.itemId, { opacity: opt.val });
+                          await api.put(`/items/${nodeMenu.itemId}`, { opacity: opt.val }).catch(() => {});
+                          setNodeSubmenu(null);
+                        }}
+                      >
+                        <span>{opt.label}</span>
+                        {isSelected && <span>✓</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Role Flags Submenu */}
+            <div
+              className="relative"
+              onMouseEnter={() => {
+                clearNodeSubmenuCloseTimer();
+                setNodeSubmenu("flags");
+              }}
+              onMouseLeave={scheduleNodeSubmenuClose}
+            >
+              <button
+                className="w-full text-left px-3 py-2 text-sm hover:bg-gray-700 flex items-center justify-between"
+                onMouseDown={(e) => e.preventDefault()}
+              >
+                <span>Role Flags</span>
+                <span className="text-xs text-slate-400 font-mono">&rsaquo;</span>
+              </button>
+              {nodeSubmenu === "flags" && (
+                <div
+                  className="absolute left-full top-0 ml-1 z-50 min-w-48 bg-gray-800 border border-gray-600 rounded-lg shadow-xl py-1"
+                  onMouseEnter={clearNodeSubmenuCloseTimer}
+                  onMouseLeave={scheduleNodeSubmenuClose}
+                >
+                  {(() => {
+                    const nodeItem = items.find((i) => i.id === nodeMenu.itemId);
+                    const currentFlags = nodeItem?.flags || [];
+                    return (Object.keys(FLAG_DEFINITIONS) as FlagType[]).map((flagKey) => {
+                      const def = FLAG_DEFINITIONS[flagKey];
+                      const isSelected = currentFlags.includes(flagKey);
+                      return (
+                        <button
+                          key={flagKey}
+                          className={`w-full text-left px-3 py-1.5 text-xs flex items-center justify-between hover:bg-gray-700 ${
+                            isSelected ? "text-emerald-300 font-semibold bg-emerald-950/30" : "text-gray-300"
+                          }`}
+                          onMouseDown={(e) => {
+                            e.stopPropagation();
+                            void handleToggleNodeFlag(nodeMenu.itemId, flagKey);
+                          }}
+                        >
+                          <span className="flex items-center gap-1.5 truncate">
+                            <span>{def.emoji}</span>
+                            <span className="truncate">{def.label}</span>
+                          </span>
+                          {isSelected && <span className="text-xs text-emerald-400 font-bold ml-2">✓</span>}
+                        </button>
+                      );
+                    });
+                  })()}
+                </div>
+              )}
+            </div>
+
+            {/* Duplicate & Multi-Select Merge Options */}
+            {(() => {
+              const nodeItem = items.find((i) => i.id === nodeMenu.itemId);
+              const key = nodeItem ? getNormalizedResourceKey(nodeItem) : null;
+              const duplicates = key
+                ? items.filter((i) => getNormalizedResourceKey(i) === key)
+                : [];
+
+              return (
+                <>
+                  {duplicates.length > 1 && (
+                    <button
+                      className="w-full text-left px-3 py-2 text-sm text-amber-300 hover:bg-gray-700 flex items-center justify-between"
+                      onMouseDown={() => {
+                        const dupIds = duplicates.map((d) => d.id);
+                        revealMultipleItems(dupIds);
+                        setSelectedItemIds(dupIds);
+                        setNodeMenu(null);
+                      }}
+                    >
+                      <span>Select All Duplicates ({duplicates.length})</span>
+                      <span className="text-xs">🪞</span>
+                    </button>
+                  )}
+
+                  {duplicates.length > 1 && (
+                    <button
+                      className="w-full text-left px-3 py-2 text-sm text-purple-300 hover:bg-gray-700 flex items-center justify-between font-semibold border-t border-gray-700/80 mt-1 pt-1"
+                      onMouseDown={() => {
+                        handleOpenMergeModal(duplicates, nodeMenu.itemId);
+                        setNodeMenu(null);
+                      }}
+                    >
+                      <div className="flex flex-col">
+                        <span>Set as Primary & Merge Duplicates ({duplicates.length})...</span>
+                        <span className="text-[10px] text-purple-300/70 font-normal">Keep this node visually</span>
+                      </div>
+                      <span className="text-xs">🔀</span>
+                    </button>
+                  )}
+                  {selectedItemIds.length > 1 && (
+                    <button
+                      className="w-full text-left px-3 py-2 text-sm text-purple-300 hover:bg-gray-700 flex items-center justify-between font-semibold border-t border-gray-700/80 mt-1 pt-1"
+                      onMouseDown={() => {
+                        const selectedObjs = items.filter((i) => selectedItemIds.includes(i.id));
+                        handleOpenMergeModal(selectedObjs, nodeMenu.itemId);
+                        setNodeMenu(null);
+                      }}
+                    >
+                      <div className="flex flex-col">
+                        <span>Set as Primary & Merge Selected ({selectedItemIds.length})...</span>
+                        <span className="text-[10px] text-purple-300/70 font-normal">Keep this node visually</span>
+                      </div>
+                      <span className="text-xs">🔀</span>
+                    </button>
+                  )}
+                </>
+              );
+            })()}
+
             <div className="border-t border-gray-700 my-1" />
             <button
               className="w-full text-left px-3 py-2 text-sm text-red-400 hover:bg-gray-700"
@@ -1448,6 +2416,21 @@ function App() {
           onClose={() => { setTitleDialog(false); setNodeMenu(null); setNodeSubmenu(null); }}
         />
       )}
+
+      {/* Merge Modal */}
+      <MergeModal
+        isOpen={isMergeModalOpen}
+        onClose={() => setIsMergeModalOpen(false)}
+        selectedItems={mergeModalItems}
+        initialPrimaryId={mergePrimaryId}
+        onMergeSuccess={async (primaryItem) => {
+          await loadData();
+          clearMultiSelect();
+          selectAndReveal(primaryItem.id);
+        }}
+      />
+
+
 
       {deletePrompt && (
         <div className="fixed inset-0 z-[70] bg-black/45 flex items-center justify-center p-4">

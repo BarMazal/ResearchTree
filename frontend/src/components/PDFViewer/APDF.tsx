@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
 import "react-pdf/dist/esm/Page/TextLayer.css";
+import "react-pdf/dist/esm/Page/AnnotationLayer.css";
 import type { MenuAction } from "./ContextMenu";
 
 pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.mjs`;
@@ -54,14 +55,13 @@ function LazyPage({ pageNumber, width, renderTextLayer = true, className }: Lazy
     };
   }, []);
 
-  const height = width * 1.414; // Estimated aspect ratio height for A4
+  const height = Math.round(width * 1.414); // Estimated aspect ratio height for A4
 
   return (
     <div
       ref={elementRef}
       style={{
         width: `${width}px`,
-        height: isNearViewport ? "auto" : `${height}px`,
         minHeight: `${height}px`,
       }}
       className={`relative flex items-center justify-center bg-gray-900 border border-gray-700 rounded ${className || ""}`}
@@ -71,6 +71,7 @@ function LazyPage({ pageNumber, width, renderTextLayer = true, className }: Lazy
           pageNumber={pageNumber}
           width={width}
           renderTextLayer={renderTextLayer}
+          renderAnnotationLayer={false}
           className="shadow-lg"
         />
       ) : (
@@ -366,6 +367,23 @@ export function APDF({
     });
   }, [currentPage, fileUrl]);
 
+  // Keep scroll position aligned to currentPage when pageWidth changes due to pane toggles/resizing
+  useEffect(() => {
+    if (isInitialLoad.current) return;
+    const container = scrollRef.current;
+    const node = pagesRef.current.get(currentPage);
+    if (!container || !node) return;
+
+    isProgrammaticScroll.current = true;
+    container.scrollTop = node.offsetTop;
+    lastScrollDetectedPage.current = currentPage;
+
+    const timer = requestAnimationFrame(() => {
+      isProgrammaticScroll.current = false;
+    });
+    return () => cancelAnimationFrame(timer);
+  }, [pageWidth, currentPage]);
+
 
 
 
@@ -510,6 +528,7 @@ export function APDF({
                   pageNumber={currentPage}
                   width={pageWidth}
                   renderTextLayer
+                  renderAnnotationLayer={false}
                   className="shadow-lg"
                 />
               </div>
@@ -591,8 +610,10 @@ export function APDF({
           >
             Bookmark selection
           </button>
-          {renderActionButton("Spawn note", { type: "spawn_note" })}
-          {renderActionButton("Spawn child", { type: "spawn_branch" })}
+          {renderActionButton("⏳ Spawn Waiting On...", { type: "spawn_waiting_on" })}
+          {renderActionButton("Spawn LLM Summary", { type: "spawn_llm_summary" })}
+          {renderActionButton("Spawn NotebookLM", { type: "spawn_notebook" })}
+          {renderActionButton("Spawn child note", { type: "spawn_branch" })}
           {renderActionButton("Mark progress here", { type: "mark_progress" })}
 
           <div className="border-t border-gray-700 my-1" />
