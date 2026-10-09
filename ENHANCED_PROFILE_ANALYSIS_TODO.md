@@ -26,13 +26,13 @@
 ---
 
 ## 📍 Phase 3: Stockfish + LLM Analysis Engine & Worker
-- [ ] Build Stockfish 16 position evaluator service (`backend/app/services/stockfish_service.py`).
-- [ ] Build LLM Mentor move classifier service (`backend/app/services/mentor_classifier_service.py`).
-- [ ] Build resilient background analysis worker (`backend/app/services/analysis_worker.py`):
+- [x] Build Stockfish position evaluator service (`backend/app/services/stockfish_service.py`).
+- [x] Build LLM Mentor move classifier service (`backend/app/services/mentor_classifier_service.py`).
+- [x] Build resilient background analysis worker (`backend/app/services/analysis_worker.py`):
   - Priority Queue: `large_eval_deltas` ($|\Delta \text{eval}| > 1.5$) processed first.
   - Transactional per-node commits (`UNANALYZED` $\rightarrow$ `IN_PROGRESS` $\rightarrow$ `ANALYZED`).
   - Worker CPU & Run-Time Budget controls via settings.
-- [ ] Build 6-Aspect Metric Calculator (Offensive: Creation, Execution, Yield | Defensive: Prevention, Failure, Damage).
+- [x] Build 6-Aspect Metric Calculator (Offensive: Creation, Execution, Yield | Defensive: Prevention, Failure, Damage).
 
 ---
 
