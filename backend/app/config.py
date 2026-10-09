@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     anthropic_model: str = "claude-3-5-sonnet"
 
     notebooklm_cookie: str | None = None
+    stockfish_path: str = r"C:\Projects\chessbooklm\stockfish\stockfish.exe"
 
     model_config = {"env_prefix": "RT_", "env_file": ".env"}
 
