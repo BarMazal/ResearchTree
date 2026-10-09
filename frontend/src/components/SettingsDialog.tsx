@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { api } from "../api/client";
 import { useSettingsStore, type NodeShape, type ColorScheme } from "../store/useSettingsStore";
+import { ChessBoardSettingsPanel } from "./ChessBoardSettingsPanel";
 
 type Props = {
   onClose: () => void;
@@ -46,7 +47,7 @@ interface NotebookLMStatus {
 }
 
 export function SettingsDialog({ onClose }: Props) {
-  const [activeTab, setActiveTab] = useState<"llm" | "notebooklm" | "graph">("llm");
+  const [activeTab, setActiveTab] = useState<"llm" | "notebooklm" | "chessboard" | "graph">("llm");
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -299,6 +300,16 @@ export function SettingsDialog({ onClose }: Props) {
             📓 NotebookLM Integration
           </button>
           <button
+            onClick={() => { setActiveTab("chessboard"); setVerifyResult(null); }}
+            className={`py-2.5 px-4 text-xs font-semibold border-b-2 transition-colors ${
+              activeTab === "chessboard"
+                ? "border-blue-500 text-blue-400"
+                : "border-transparent text-gray-400 hover:text-gray-200"
+            }`}
+          >
+            ♟️ Board & Sound Effects
+          </button>
+          <button
             onClick={() => { setActiveTab("graph"); setVerifyResult(null); }}
             className={`py-2.5 px-4 text-xs font-semibold border-b-2 transition-colors ${
               activeTab === "graph"
@@ -316,6 +327,10 @@ export function SettingsDialog({ onClose }: Props) {
             <div className="text-gray-400 text-sm flex items-center justify-center py-10">
               Loading configuration...
             </div>
+          )}
+
+          {!loading && activeTab === "chessboard" && (
+            <ChessBoardSettingsPanel />
           )}
 
           {!loading && activeTab === "llm" && (
