@@ -12,6 +12,8 @@ from app.routes.collections import router as collections_router
 from app.routes.profiles import router as profiles_router
 from app.routes.events import router as events_router
 from app.routes.lichess import router as lichess_router
+from app.routes.saved_filters import router as saved_filters_router
+from app.routes.category_settings import router as category_settings_router
 
 api_router = APIRouter(prefix="/api")
 api_router.include_router(items_router)
@@ -26,3 +28,5 @@ api_router.include_router(collections_router)
 api_router.include_router(profiles_router)
 api_router.include_router(events_router)
 api_router.include_router(lichess_router)
+api_router.include_router(saved_filters_router)
+api_router.include_router(category_settings_router)

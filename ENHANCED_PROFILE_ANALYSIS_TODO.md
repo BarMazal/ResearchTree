@@ -44,9 +44,10 @@
 ---
 
 ## 📍 Phase 5: Filter Builder & Category Governance
-- [ ] Implement CRUD backend endpoints for `SavedFilter` and `CategorySetting`.
+- [x] Implement CRUD backend endpoints for `SavedFilter` (`backend/app/routes/saved_filters.py`).
+- [x] Implement Category Governance API (`backend/app/routes/category_settings.py`) supporting manual promote/demote/add/delete + $5\%$ auto-promotion.
 - [ ] Build Custom UI Filter Builder (`frontend/src/components/FilterBuilder.tsx`) with prebuilt system presets (Opening, Middlegame, Endgame, Blunders, Time Trouble).
-- [ ] Build Category Governance UI (`frontend/src/components/CategorySettings.tsx`) supporting manual promote/demote/add/delete + $5\%$ auto-promotion.
+- [ ] Build Category Governance UI (`frontend/src/components/CategorySettings.tsx`).
 
 ---
 
