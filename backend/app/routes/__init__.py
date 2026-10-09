@@ -9,6 +9,8 @@ from app.routes.upload import router as upload_router
 from app.routes.llm import router as llm_router
 from app.routes.settings import router as settings_router
 from app.routes.collections import router as collections_router
+from app.routes.profiles import router as profiles_router
+from app.routes.events import router as events_router
 
 api_router = APIRouter(prefix="/api")
 api_router.include_router(items_router)
@@ -20,3 +22,5 @@ api_router.include_router(upload_router)
 api_router.include_router(llm_router)
 api_router.include_router(settings_router)
 api_router.include_router(collections_router)
+api_router.include_router(profiles_router)
+api_router.include_router(events_router)

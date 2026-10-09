@@ -3,22 +3,25 @@
 ---
 
 ## 📍 Phase 1: Database Schema & SQLAlchemy Models
-- [ ] Create `Profile` model in `backend/app/models/profile.py` with `is_qa` flag.
-- [ ] Create `Event` model in `backend/app/models/event.py` (`Game` vs `Riddle`/`Exercise`, goals, setup FEN, category tags).
-- [ ] Create `DAGNode` model in `backend/app/models/dag_node.py` (parent_id, move_san, fen, leaf_termination, cumulative blunder/miss counters).
-- [ ] Create `NodeAnalysis` model in `backend/app/models/node_analysis.py` (stockfish_eval, eval_delta, 6-aspect flags, category, sub_category, reasoning).
-- [ ] Create `SavedFilter` model in `backend/app/models/saved_filter.py`.
-- [ ] Create `CategorySetting` model in `backend/app/models/category_setting.py` (promotion/demotion status).
-- [ ] Update `backend/app/models/__init__.py` and create database initialization/migration scripts.
+- [x] Create `Profile` model in `backend/app/models/profile.py` with `is_qa` flag.
+- [x] Create `Event` model in `backend/app/models/event.py` (`Game` vs `Riddle`/`Exercise`, goals, setup FEN, category tags).
+- [x] Create `DAGNode` model in `backend/app/models/dag_node.py` (parent_id, move_san, fen, leaf_termination, cumulative blunder/miss counters).
+- [x] Create `NodeAnalysis` model in `backend/app/models/node_analysis.py` (stockfish_eval, eval_delta, 6-aspect flags, category, sub_category, reasoning).
+- [x] Create `SavedFilter` model in `backend/app/models/saved_filter.py`.
+- [x] Create `CategorySetting` model in `backend/app/models/category_setting.py` (promotion/demotion status).
+- [x] Update `backend/app/models/__init__.py` and create database initialization/migration scripts.
 
 ---
 
 ## 📍 Phase 2: Core Event & DAG Logging API
-- [ ] Implement `POST /api/events` (Create new Game/Riddle event).
-- [ ] Implement `POST /api/events/{id}/moves` (Real-time background move logger with cumulative counters).
-- [ ] Implement `POST /api/events/{id}/undo` (Snapshot pre-undo attempt sequence, flag abandoned leaf, set active parent node).
-- [ ] Implement `POST /api/events/{id}/restart` (Snapshot pre-restart sequence, flag failed leaf, reset active node to root).
-- [ ] Implement `GET /api/events/{id}/dag` (Retrieve full bi-directional move tree with leaf hash index).
+- [x] Create Pydantic schemas in `backend/app/schemas/` (`profile`, `event`, `dag_node`, `saved_filter`, `category_setting`).
+- [x] Implement `POST /api/profiles`, `GET /api/profiles`, `PUT`, `DELETE` in `backend/app/routes/profiles.py`.
+- [x] Implement `POST /api/events` (Create new Game/Riddle event).
+- [x] Implement `POST /api/events/{id}/moves` (Real-time background move logger with cumulative counters).
+- [x] Implement `POST /api/events/{id}/undo` (Snapshot pre-undo attempt sequence, flag abandoned leaf, set active parent node).
+- [x] Implement `POST /api/events/{id}/restart` (Snapshot pre-restart sequence, flag failed leaf, reset active node to root).
+- [x] Implement `GET /api/events/{id}/dag` (Retrieve full bi-directional move tree with leaf hash index).
+- [x] Register `profiles` and `events` routers in `backend/app/routes/__init__.py` and verify FastAPI endpoints.
 
 ---
 
