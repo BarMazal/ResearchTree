@@ -21,6 +21,7 @@ SAMPLE_SAN_MOVES = [
 CATEGORIES = ["openings", "endgames", "fork_double_attack", "pin_skewer", "king_safety", "pawn_mechanics"]
 
 def seed_qa_data(num_events: int = 50):
+    Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
 
@@ -38,19 +39,42 @@ def seed_qa_data(num_events: int = 50):
         events_created = 0
         nodes_created = 0
 
+        current_player_elo = 1400
+
         for i in range(num_events):
             event_class = "Game" if i % 4 != 0 else "Riddle"
             cat = random.choice(CATEGORIES)
             goal = "win_game" if event_class == "Game" else "mate_in_K"
+
+            is_bot = (i % 2 == 0)
+            opp_type = "bot" if is_bot else "human"
+            opp_names_bot = ["Stockfish_Level_5", "Komodo_Engine", "Maia_1500", "Lichess_Bot_V2"]
+            opp_names_human = ["Magnus_Fan_99", "TacticalMaster", "Grandmaster_Pro", "ChessWizard_88", "Rookie_Player"]
+            opp_name = random.choice(opp_names_bot) if is_bot else random.choice(opp_names_human)
+            opp_elo = random.randint(1300, 1950)
+
+            is_win = random.random() > 0.35
+            result_score = 1.0 if is_win else (0.5 if random.random() < 0.2 else 0.0)
+
+            elo_change = int((result_score - 0.5) * 24 + random.randint(-4, 4))
+            player_elo_before = current_player_elo
+            current_player_elo = max(1000, current_player_elo + elo_change)
+            player_elo_after = current_player_elo
 
             event = Event(
                 profile_id=qa_prof.id,
                 event_class=event_class,
                 category=cat,
                 goal_type=goal,
-                status="done" if random.random() > 0.2 else "failed",
-                player_white="qa_tester" if i % 2 == 0 else "Grandmaster_Bot",
-                player_black="Grandmaster_Bot" if i % 2 == 0 else "qa_tester",
+                status="done" if is_win else "failed",
+                player_white="qa_tester" if i % 2 == 0 else opp_name,
+                player_black=opp_name if i % 2 == 0 else "qa_tester",
+                opponent_name=opp_name,
+                opponent_type=opp_type,
+                opponent_elo=opp_elo,
+                player_elo_before=player_elo_before,
+                player_elo_after=player_elo_after,
+                result_score=result_score,
                 initial_fen="rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
             )
             db.add(event)

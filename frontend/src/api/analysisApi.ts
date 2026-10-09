@@ -90,11 +90,39 @@ export type CategorySettingData = {
   updated_at: string;
 };
 
+export type EloHistoryItem = {
+  event_id: string;
+  event_number: number;
+  created_at: string | null;
+  event_class: string;
+  category: string | null;
+  opponent_name: string;
+  opponent_type: "human" | "bot";
+  opponent_elo: number;
+  player_elo_before: number;
+  player_elo_after: number;
+  result_score: number;
+  wins: number;
+  draws: number;
+  losses: number;
+  win_rate: number;
+};
+
+export type EloHistoryResponse = {
+  profile_id: string;
+  username: string;
+  total_events: number;
+  current_elo: number;
+  overall_win_rate: number;
+  history: EloHistoryItem[];
+};
+
 export const analysisApi = {
   // Profiles
   getProfiles: () => api.get<ProfileData[]>("/profiles"),
   createProfile: (data: { username: string; display_name?: string; is_qa?: boolean }) =>
     api.post<ProfileData>("/profiles", data),
+  getEloHistory: (profileId: string) => api.get<EloHistoryResponse>(`/profiles/${profileId}/analytics/elo-history`),
 
   // Events
   getEvents: (profileId?: string, eventClass?: string) => {

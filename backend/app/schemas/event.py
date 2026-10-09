@@ -10,6 +10,12 @@ class EventCreate(BaseModel):
     goal_description: str | None = None
     player_white: str | None = None
     player_black: str | None = None
+    opponent_name: str | None = None
+    opponent_type: str = Field(default="human")  # "human", "bot"
+    opponent_elo: int | None = 1500
+    player_elo_before: int | None = 1500
+    player_elo_after: int | None = 1500
+    result_score: float | None = 1.0
     initial_fen: str | None = None
 
 
@@ -21,6 +27,12 @@ class EventUpdate(BaseModel):
     status: str | None = None  # running, done, failed
     player_white: str | None = None
     player_black: str | None = None
+    opponent_name: str | None = None
+    opponent_type: str | None = None
+    opponent_elo: int | None = None
+    player_elo_before: int | None = None
+    player_elo_after: int | None = None
+    result_score: float | None = None
     initial_fen: str | None = None
 
 
@@ -34,6 +46,12 @@ class EventRead(BaseModel):
     status: str
     player_white: str | None = None
     player_black: str | None = None
+    opponent_name: str | None = None
+    opponent_type: str = "human"
+    opponent_elo: int | None = 1500
+    player_elo_before: int | None = 1500
+    player_elo_after: int | None = 1500
+    result_score: float | None = 1.0
     initial_fen: str | None = None
     created_at: datetime
     updated_at: datetime

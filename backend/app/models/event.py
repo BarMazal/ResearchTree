@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 import uuid
 
-from sqlalchemy import Column, String, DateTime, ForeignKey, Text
+from sqlalchemy import Column, String, DateTime, ForeignKey, Text, Integer, Float
 from sqlalchemy.orm import relationship
 
 from app.database import Base
@@ -19,6 +19,12 @@ class Event(Base):
     status = Column(String, nullable=False, default="running")  # running, done, failed
     player_white = Column(String, nullable=True)
     player_black = Column(String, nullable=True)
+    opponent_name = Column(String, nullable=True)
+    opponent_type = Column(String, nullable=False, default="human")  # "human", "bot"
+    opponent_elo = Column(Integer, nullable=True, default=1500)
+    player_elo_before = Column(Integer, nullable=True, default=1500)
+    player_elo_after = Column(Integer, nullable=True, default=1500)
+    result_score = Column(Float, nullable=True, default=1.0)  # 1.0 = win, 0.5 = draw, 0.0 = loss
     initial_fen = Column(Text, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))

@@ -5,7 +5,8 @@ import {
   type EventData,
   type EventDAGResponse,
   type SavedFilterData,
-  type CategorySettingData
+  type CategorySettingData,
+  type EloHistoryResponse
 } from "../../api/analysisApi";
 
 export function AnalyticsDashboard() {
@@ -17,8 +18,9 @@ export function AnalyticsDashboard() {
 
   const [savedFilters, setSavedFilters] = useState<SavedFilterData[]>([]);
   const [categorySettings, setCategorySettings] = useState<CategorySettingData[]>([]);
+  const [eloHistory, setEloHistory] = useState<EloHistoryResponse | null>(null);
 
-  const [activeTab, setActiveTab] = useState<"dashboard" | "history" | "filters" | "governance" | "lichess">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "elo_rating" | "history" | "filters" | "governance" | "lichess">("dashboard");
 
   // Lichess State
   const [lichessUsername, setLichessUsername] = useState("magnuscarlsen");
@@ -48,6 +50,7 @@ export function AnalyticsDashboard() {
     analysisApi.getEvents(activeProfileId).then(setEvents);
     analysisApi.getSavedFilters(activeProfileId).then(setSavedFilters);
     analysisApi.getCategorySettings(activeProfileId).then(setCategorySettings);
+    analysisApi.getEloHistory(activeProfileId).then(setEloHistory);
   }, [activeProfileId]);
 
   useEffect(() => {
@@ -155,6 +158,12 @@ export function AnalyticsDashboard() {
           📊 Dashboard & 6-Aspect Funnel
         </button>
         <button
+          onClick={() => setActiveTab("elo_rating")}
+          className={`px-3 py-1.5 rounded font-medium ${activeTab === "elo_rating" ? "bg-blue-600 text-white" : "bg-gray-800 hover:bg-gray-700 text-gray-300"}`}
+        >
+          📈 Rating & Opponent Progress
+        </button>
+        <button
           onClick={() => setActiveTab("history")}
           className={`px-3 py-1.5 rounded font-medium ${activeTab === "history" ? "bg-blue-600 text-white" : "bg-gray-800 hover:bg-gray-700 text-gray-300"}`}
         >
@@ -179,6 +188,307 @@ export function AnalyticsDashboard() {
           ♟️ Lichess Explorer & Import
         </button>
       </div>
+
+      {/* TAB: ELO RATING & OPPONENT PROGRESS */}
+      {activeTab === "elo_rating" && (
+        <div className="flex flex-col gap-6">
+          {/* Rating Metric Cards */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="bg-gray-800 border border-gray-700 p-4 rounded">
+              <span className="text-xs text-gray-400 block">Current Estimated Elo</span>
+              <span className="text-3xl font-extrabold text-blue-400">
+                {eloHistory?.current_elo ?? 1500}
+              </span>
+            </div>
+            <div className="bg-gray-800 border border-gray-700 p-4 rounded">
+              <span className="text-xs text-gray-400 block">Peak Rating</span>
+              <span className="text-3xl font-extrabold text-purple-400">
+                {eloHistory?.history.length
+                  ? Math.max(...eloHistory.history.map((h) => h.player_elo_after))
+                  : 1500}
+              </span>
+            </div>
+            <div className="bg-gray-800 border border-gray-700 p-4 rounded">
+              <span className="text-xs text-gray-400 block">Overall Win Rate</span>
+              <span className="text-3xl font-extrabold text-green-400">
+                {eloHistory?.overall_win_rate ?? 0}%
+              </span>
+            </div>
+            <div className="bg-gray-800 border border-gray-700 p-4 rounded">
+              <span className="text-xs text-gray-400 block">Opponent Type Ratio</span>
+              <div className="text-sm font-semibold text-gray-200 mt-1">
+                🤖 Bots:{" "}
+                <span className="text-purple-300">
+                  {eloHistory?.history.filter((h) => h.opponent_type === "bot").length ?? 0}
+                </span>{" "}
+                | 👤 Humans:{" "}
+                <span className="text-emerald-300">
+                  {eloHistory?.history.filter((h) => h.opponent_type === "human").length ?? 0}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Graph 1: Player Elo Over Time */}
+          <div className="bg-gray-800 border border-gray-700 p-5 rounded flex flex-col gap-3">
+            <div className="flex justify-between items-center border-b border-gray-700 pb-2">
+              <h3 className="text-base font-semibold text-blue-400">
+                📈 Profile Estimated Elo Rating Over Time
+              </h3>
+              <span className="text-xs text-gray-400">Chronological Event Progression</span>
+            </div>
+
+            {eloHistory && eloHistory.history.length > 0 ? (
+              <div className="relative w-full h-64 bg-gray-900 rounded p-2 overflow-x-auto">
+                <svg viewBox="0 0 800 220" className="w-full h-full">
+                  {/* Grid Lines */}
+                  {[1200, 1400, 1600, 1800].map((yVal) => {
+                    const minElo = 1100;
+                    const maxElo = 1900;
+                    const yPos = 200 - ((yVal - minElo) / (maxElo - minElo)) * 170;
+                    return (
+                      <g key={yVal}>
+                        <line x1="40" y1={yPos} x2="780" y2={yPos} stroke="#374151" strokeDasharray="3 3" />
+                        <text x="5" y={yPos + 4} fill="#9CA3AF" fontSize="10">{yVal}</text>
+                      </g>
+                    );
+                  })}
+
+                  {/* Area fill */}
+                  {(() => {
+                    const items = eloHistory.history;
+                    const minElo = 1100;
+                    const maxElo = 1900;
+                    const points = items.map((h, i) => {
+                      const x = 50 + (i / Math.max(1, items.length - 1)) * 710;
+                      const y = 200 - ((h.player_elo_after - minElo) / (maxElo - minElo)) * 170;
+                      return `${x},${y}`;
+                    });
+                    const firstX = 50;
+                    const lastX = 50 + (1) * 710;
+                    const areaPath = `M ${firstX},200 L ${points.join(" L ")} L ${lastX},200 Z`;
+                    return (
+                      <path d={areaPath} fill="rgba(59, 130, 246, 0.15)" />
+                    );
+                  })()}
+
+                  {/* Polyline */}
+                  {(() => {
+                    const items = eloHistory.history;
+                    const minElo = 1100;
+                    const maxElo = 1900;
+                    const pointsStr = items.map((h, i) => {
+                      const x = 50 + (i / Math.max(1, items.length - 1)) * 710;
+                      const y = 200 - ((h.player_elo_after - minElo) / (maxElo - minElo)) * 170;
+                      return `${x},${y}`;
+                    }).join(" ");
+                    return (
+                      <polyline fill="none" stroke="#3B82F6" strokeWidth="2.5" points={pointsStr} />
+                    );
+                  })()}
+
+                  {/* Data Points */}
+                  {eloHistory.history.map((h, i) => {
+                    const items = eloHistory.history;
+                    const minElo = 1100;
+                    const maxElo = 1900;
+                    const x = 50 + (i / Math.max(1, items.length - 1)) * 710;
+                    const y = 200 - ((h.player_elo_after - minElo) / (maxElo - minElo)) * 170;
+                    const color = h.result_score >= 0.9 ? "#34D399" : (h.result_score >= 0.4 ? "#FBBF24" : "#F87171");
+                    return (
+                      <circle
+                        key={h.event_id}
+                        cx={x}
+                        cy={y}
+                        r="4"
+                        fill={color}
+                        stroke="#1F2937"
+                        strokeWidth="1.5"
+                      >
+                        <title>{`Event #${h.event_number} (${h.category || h.event_class}) vs ${h.opponent_name} (${h.opponent_type}): ${h.player_elo_after} Elo`}</title>
+                      </circle>
+                    );
+                  })}
+                </svg>
+              </div>
+            ) : (
+              <div className="text-gray-500 text-sm italic py-8 text-center">No Elo history recorded yet.</div>
+            )}
+          </div>
+
+          {/* Graph 2: Opponent Elo & Type Graph */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="bg-gray-800 border border-gray-700 p-5 rounded flex flex-col gap-3">
+              <div className="flex justify-between items-center border-b border-gray-700 pb-2">
+                <h3 className="text-base font-semibold text-purple-400">
+                  ⚔️ Opponent Rating & Type (Human 👤 vs Bot 🤖)
+                </h3>
+              </div>
+
+              {eloHistory && eloHistory.history.length > 0 ? (
+                <div className="relative w-full h-56 bg-gray-900 rounded p-2">
+                  <svg viewBox="0 0 400 180" className="w-full h-full">
+                    {/* Y Grid */}
+                    {[1200, 1500, 1800].map((yVal) => {
+                      const yPos = 160 - ((yVal - 1000) / 1000) * 130;
+                      return (
+                        <g key={yVal}>
+                          <line x1="30" y1={yPos} x2="390" y2={yPos} stroke="#374151" strokeDasharray="2 2" />
+                          <text x="2" y={yPos + 3} fill="#9CA3AF" fontSize="8">{yVal}</text>
+                        </g>
+                      );
+                    })}
+
+                    {/* Opponent points */}
+                    {eloHistory.history.map((h, i) => {
+                      const items = eloHistory.history;
+                      const x = 35 + (i / Math.max(1, items.length - 1)) * 350;
+                      const y = 160 - ((h.opponent_elo - 1000) / 1000) * 130;
+                      const isBot = h.opponent_type === "bot";
+                      return (
+                        <circle
+                          key={`opp-${h.event_id}`}
+                          cx={x}
+                          cy={y}
+                          r="3.5"
+                          fill={isBot ? "#A855F7" : "#10B981"}
+                        >
+                          <title>{`Opponent: ${h.opponent_name} (${h.opponent_type.toUpperCase()}) - ${h.opponent_elo} Elo`}</title>
+                        </circle>
+                      );
+                    })}
+                  </svg>
+                  <div className="flex justify-center gap-6 mt-1 text-xs">
+                    <span className="text-purple-400 flex items-center gap-1">● 🤖 Bot Opponents</span>
+                    <span className="text-emerald-400 flex items-center gap-1">● 👤 Human Opponents</span>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-gray-500 text-sm italic py-8 text-center">No opponent data available.</div>
+              )}
+            </div>
+
+            {/* Graph 3: Win Rate % Curve */}
+            <div className="bg-gray-800 border border-gray-700 p-5 rounded flex flex-col gap-3">
+              <div className="flex justify-between items-center border-b border-gray-700 pb-2">
+                <h3 className="text-base font-semibold text-green-400">
+                  🎯 Cumulative Win Rate % Over Time
+                </h3>
+              </div>
+
+              {eloHistory && eloHistory.history.length > 0 ? (
+                <div className="relative w-full h-56 bg-gray-900 rounded p-2">
+                  <svg viewBox="0 0 400 180" className="w-full h-full">
+                    {/* 50% Baseline */}
+                    <line x1="30" y1="90" x2="390" y2="90" stroke="#EF4444" strokeDasharray="3 3" />
+                    <text x="2" y="93" fill="#EF4444" fontSize="8">50%</text>
+
+                    {/* Win rate line */}
+                    {(() => {
+                      const items = eloHistory.history;
+                      const pointsStr = items.map((h, i) => {
+                        const x = 35 + (i / Math.max(1, items.length - 1)) * 350;
+                        const y = 160 - (h.win_rate / 100) * 140;
+                        return `${x},${y}`;
+                      }).join(" ");
+                      return (
+                        <polyline fill="none" stroke="#10B981" strokeWidth="2" points={pointsStr} />
+                      );
+                    })()}
+
+                    {/* Points */}
+                    {eloHistory.history.map((h, i) => {
+                      const items = eloHistory.history;
+                      const x = 35 + (i / Math.max(1, items.length - 1)) * 350;
+                      const y = 160 - (h.win_rate / 100) * 140;
+                      return (
+                        <circle key={`wr-${h.event_id}`} cx={x} cy={y} r="3" fill="#10B981">
+                          <title>{`Event #${h.event_number}: ${h.win_rate}% Win Rate (${h.wins}W / ${h.losses}L)`}</title>
+                        </circle>
+                      );
+                    })}
+                  </svg>
+                  <div className="text-xs text-gray-400 text-center mt-1">
+                    Rolling Win Rate Progression (50% Baseline highlighted in red)
+                  </div>
+                </div>
+              ) : (
+                <div className="text-gray-500 text-sm italic py-8 text-center">No win rate data available.</div>
+              )}
+            </div>
+          </div>
+
+          {/* Opponent & Match History Log */}
+          <div className="bg-gray-800 border border-gray-700 p-4 rounded flex flex-col gap-3">
+            <h3 className="text-base font-semibold text-gray-200 border-b border-gray-700 pb-2">
+              📜 Detailed Opponent & Rating Match Log
+            </h3>
+            <div className="overflow-x-auto max-h-80">
+              <table className="w-full text-left text-xs text-gray-300">
+                <thead className="bg-gray-900 text-gray-400 uppercase font-mono border-b border-gray-700">
+                  <tr>
+                    <th className="p-2">#</th>
+                    <th className="p-2">Class</th>
+                    <th className="p-2">Category</th>
+                    <th className="p-2">Opponent</th>
+                    <th className="p-2">Type</th>
+                    <th className="p-2">Opp Elo</th>
+                    <th className="p-2">Player Elo (Before $\rightarrow$ After)</th>
+                    <th className="p-2">Result</th>
+                    <th className="p-2">Cumulative Win %</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-700">
+                  {eloHistory?.history.map((h) => {
+                    const isWin = h.result_score >= 0.9;
+                    const isDraw = h.result_score >= 0.4 && !isWin;
+                    return (
+                      <tr key={h.event_id} className="hover:bg-gray-750">
+                        <td className="p-2 font-mono">{h.event_number}</td>
+                        <td className="p-2 font-medium">{h.event_class}</td>
+                        <td className="p-2 text-gray-400">{h.category || "General"}</td>
+                        <td className="p-2 font-semibold text-white">{h.opponent_name}</td>
+                        <td className="p-2">
+                          <span
+                            className={`px-1.5 py-0.5 rounded text-[10px] uppercase font-bold ${
+                              h.opponent_type === "bot"
+                                ? "bg-purple-900/80 text-purple-300 border border-purple-600"
+                                : "bg-emerald-900/80 text-emerald-300 border border-emerald-600"
+                            }`}
+                          >
+                            {h.opponent_type === "bot" ? "🤖 Bot" : "👤 Human"}
+                          </span>
+                        </td>
+                        <td className="p-2 font-mono text-gray-300">{h.opponent_elo}</td>
+                        <td className="p-2 font-mono">
+                          {h.player_elo_before} $\rightarrow${" "}
+                          <span className={h.player_elo_after >= h.player_elo_before ? "text-green-400 font-bold" : "text-red-400 font-bold"}>
+                            {h.player_elo_after}
+                          </span>
+                        </td>
+                        <td className="p-2">
+                          <span
+                            className={`px-2 py-0.5 rounded font-bold text-[11px] ${
+                              isWin
+                                ? "bg-green-900/80 text-green-300"
+                                : isDraw
+                                ? "bg-yellow-900/80 text-yellow-300"
+                                : "bg-red-900/80 text-red-300"
+                            }`}
+                          >
+                            {isWin ? "WIN" : isDraw ? "DRAW" : "LOSS"}
+                          </span>
+                        </td>
+                        <td className="p-2 font-mono font-bold text-green-300">{h.win_rate}%</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* TAB 1: DASHBOARD & 6-ASPECT FUNNEL */}
       {activeTab === "dashboard" && (
