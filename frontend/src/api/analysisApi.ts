@@ -13,6 +13,7 @@ export type EventData = {
   id: string;
   profile_id: string;
   event_class: string;
+  title?: string | null;
   category: string | null;
   goal_type: string;
   goal_description: string | null;
@@ -132,6 +133,10 @@ export const analysisApi = {
     return api.get<EventData[]>(`/events?${params.toString()}`);
   },
   createEvent: (data: Partial<EventData>) => api.post<EventData>("/events", data),
+  updateEvent: (eventId: string, data: Partial<EventData>) => api.put<EventData>(`/events/${eventId}`, data),
+  autoNameEvent: (eventId: string) => api.post<EventData>(`/events/${eventId}/auto-name`, {}),
+  runSelectiveAnalysis: (options: { run_stockfish: boolean; run_mentor: boolean; profile_id?: string; batch_size?: number }) =>
+    api.post<{ status: string; processed_count: number; run_stockfish: boolean; run_mentor: boolean }>("/events/run-selective-analysis", options),
   getEventDAG: (eventId: string) => api.get<EventDAGResponse>(`/events/${eventId}/dag`),
   recordMove: (eventId: string, move: { move_san: string; move_uci?: string; fen: string; clock_remaining_sec?: number; move_time_sec?: number }) =>
     api.post<DAGNodeData>(`/events/${eventId}/moves`, move),

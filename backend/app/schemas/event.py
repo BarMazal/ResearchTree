@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field
 class EventCreate(BaseModel):
     profile_id: str
     event_class: str = Field(default="Game")  # Game, Riddle, Exercise
+    title: str | None = None
     category: str | None = None
     goal_type: str = Field(default="win_game")
     goal_description: str | None = None
@@ -21,6 +22,7 @@ class EventCreate(BaseModel):
 
 class EventUpdate(BaseModel):
     event_class: str | None = None
+    title: str | None = None
     category: str | None = None
     goal_type: str | None = None
     goal_description: str | None = None
@@ -40,6 +42,7 @@ class EventRead(BaseModel):
     id: str
     profile_id: str
     event_class: str
+    title: str | None = None
     category: str | None = None
     goal_type: str
     goal_description: str | None = None

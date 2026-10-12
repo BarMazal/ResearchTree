@@ -13,6 +13,7 @@ class Event(Base):
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     profile_id = Column(String, ForeignKey("profiles.id", ondelete="CASCADE"), nullable=False, index=True)
     event_class = Column(String, nullable=False, default="Game")  # "Game", "Riddle", "Exercise"
+    title = Column(String, nullable=True)  # AI auto-generated or user custom event name
     category = Column(String, nullable=True)  # e.g., "openings", "endgames", "mate_in_K"
     goal_type = Column(String, nullable=False, default="win_game")  # win_game, mate_in_K, etc.
     goal_description = Column(Text, nullable=True)

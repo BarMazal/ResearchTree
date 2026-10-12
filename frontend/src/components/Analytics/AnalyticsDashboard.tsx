@@ -31,6 +31,74 @@ export function AnalyticsDashboard() {
   const [showDebugOverlay, setShowDebugOverlay] = useState(false);
   const [selectedNodeIndex, setSelectedNodeIndex] = useState(0);
 
+  // Selective Engine Analysis State
+  const [runStockfish, setRunStockfish] = useState(true);
+  const [runMentor, setRunMentor] = useState(true);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analysisStatusMsg, setAnalysisStatusMsg] = useState<string | null>(null);
+
+  const handleTriggerAnalysis = async () => {
+    if (!runStockfish && !runMentor) {
+      alert("Please select at least one engine checkbox (Stockfish or Mentor).");
+      return;
+    }
+    setIsAnalyzing(true);
+    setAnalysisStatusMsg("Running selective engine analysis on unanalyzed DAG nodes...");
+    try {
+      const res = await analysisApi.runSelectiveAnalysis({
+        run_stockfish: runStockfish,
+        run_mentor: runMentor,
+        profile_id: activeProfileId,
+        batch_size: 50,
+      });
+      const engines = [];
+      if (res.run_stockfish) engines.push("Stockfish");
+      if (res.run_mentor) engines.push("Mentor");
+      setAnalysisStatusMsg(`Analysis completed! Processed ${res.processed_count} node(s) with ${engines.join(" & ")}.`);
+      if (activeProfileId) {
+        analysisApi.getEvents(activeProfileId).then(setEvents);
+      }
+      if (selectedEventId) {
+        analysisApi.getEventDAG(selectedEventId).then(setDagData);
+      }
+    } catch (err: any) {
+      setAnalysisStatusMsg(`Analysis error: ${err.message || err}`);
+    } finally {
+      setIsAnalyzing(false);
+      setTimeout(() => setAnalysisStatusMsg(null), 5000);
+    }
+  };
+
+  const handleManualRenameEvent = async (eventId: string, currentTitle?: string | null) => {
+    const newTitle = prompt("Enter custom name for this game session/event:", currentTitle || "");
+    if (newTitle === null) return;
+    try {
+      const updated = await analysisApi.updateEvent(eventId, { title: newTitle.trim() });
+      setEvents((prev) => prev.map((e) => (e.id === eventId ? { ...e, title: updated.title } : e)));
+      if (dagData && dagData.event.id === eventId) {
+        setDagData({ ...dagData, event: { ...dagData.event, title: updated.title } });
+      }
+    } catch (err: any) {
+      alert(`Failed to update name: ${err.message || err}`);
+    }
+  };
+
+  const handleAutoNameEvent = async (eventId: string) => {
+    try {
+      setAnalysisStatusMsg("AI Mentor is analyzing move sequence to generate session title...");
+      const updated = await analysisApi.autoNameEvent(eventId);
+      setEvents((prev) => prev.map((e) => (e.id === eventId ? { ...e, title: updated.title } : e)));
+      if (dagData && dagData.event.id === eventId) {
+        setDagData({ ...dagData, event: { ...dagData.event, title: updated.title } });
+      }
+      setAnalysisStatusMsg(`Session auto-named: "${updated.title}"`);
+    } catch (err: any) {
+      alert(`Failed to auto-name event: ${err.message || err}`);
+    } finally {
+      setTimeout(() => setAnalysisStatusMsg(null), 4000);
+    }
+  };
+
   const activeProfile = useMemo(
     () => profiles.find((p) => p.id === activeProfileId) ?? null,
     [profiles, activeProfileId]
@@ -128,7 +196,38 @@ export function AnalyticsDashboard() {
           <p className="text-xs text-gray-400">Continuous move DAG logging & 6-aspect tactical metric engine</p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Selective Engine Analysis Controls */}
+          <div className="flex items-center gap-2 bg-gray-800 p-1.5 rounded border border-gray-700">
+            <span className="text-xs font-semibold text-gray-300">Engines:</span>
+            <label className="flex items-center gap-1 text-xs text-blue-300 cursor-pointer hover:text-white font-medium">
+              <input
+                type="checkbox"
+                checked={runStockfish}
+                onChange={(e) => setRunStockfish(e.target.checked)}
+                className="rounded border-gray-600 bg-gray-900 text-blue-500 accent-blue-500 cursor-pointer"
+              />
+              Stockfish
+            </label>
+            <label className="flex items-center gap-1 text-xs text-purple-300 cursor-pointer hover:text-white font-medium">
+              <input
+                type="checkbox"
+                checked={runMentor}
+                onChange={(e) => setRunMentor(e.target.checked)}
+                className="rounded border-gray-600 bg-gray-900 text-purple-500 accent-purple-500 cursor-pointer"
+              />
+              Mentor
+            </label>
+            <button
+              onClick={handleTriggerAnalysis}
+              disabled={isAnalyzing}
+              className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-bold px-3 py-1 rounded transition shadow disabled:opacity-50 flex items-center gap-1 cursor-pointer"
+              title="Run selective analysis on unanalyzed DAG nodes using checked engines"
+            >
+              ⚡ {isAnalyzing ? "Analyzing..." : "Analyze"}
+            </button>
+          </div>
+
           <label className="text-xs text-gray-400">Active Profile:</label>
           <select
             value={activeProfileId}
@@ -148,6 +247,14 @@ export function AnalyticsDashboard() {
           )}
         </div>
       </header>
+
+      {/* Analysis Status Toast Banner */}
+      {analysisStatusMsg && (
+        <div className="bg-blue-950/80 border border-blue-500 text-blue-200 text-xs px-3 py-2 rounded mb-3 flex items-center justify-between">
+          <span>ℹ️ {analysisStatusMsg}</span>
+          <button onClick={() => setAnalysisStatusMsg(null)} className="text-gray-400 hover:text-white font-bold">×</button>
+        </div>
+      )}
 
       {/* Navigation Tabs */}
       <div className="flex gap-2 border-b border-gray-700 pb-2 mb-4 text-sm">
@@ -566,34 +673,80 @@ export function AnalyticsDashboard() {
           {/* Event List */}
           <div className="bg-gray-800 border border-gray-700 p-3 rounded flex flex-col gap-2 max-h-[600px] overflow-y-auto">
             <h3 className="text-sm font-semibold text-gray-300 border-b border-gray-700 pb-2">Recorded Events</h3>
-            {events.map((evt) => (
-              <button
-                key={evt.id}
-                onClick={() => setSelectedEventId(evt.id)}
-                className={`text-left p-2 rounded text-xs flex flex-col gap-1 border ${selectedEventId === evt.id ? "bg-blue-900/60 border-blue-500 text-white" : "bg-gray-900 border-gray-700 hover:bg-gray-750 text-gray-300"}`}
-              >
-                <div className="flex justify-between font-bold">
-                  <span>{evt.event_class}: {evt.category || "General"}</span>
-                  <span className={evt.status === "done" ? "text-green-400" : "text-red-400"}>{evt.status}</span>
+            {events.map((evt) => {
+              const displayTitle = evt.title || `${evt.event_class}: ${evt.category || "General"}`;
+              return (
+                <div
+                  key={evt.id}
+                  onClick={() => setSelectedEventId(evt.id)}
+                  className={`p-2 rounded text-xs flex flex-col gap-1 border cursor-pointer ${selectedEventId === evt.id ? "bg-blue-900/60 border-blue-500 text-white" : "bg-gray-900 border-gray-700 hover:bg-gray-750 text-gray-300"}`}
+                >
+                  <div className="flex justify-between font-bold items-center gap-1">
+                    <span className="truncate flex-1 text-sm font-semibold text-blue-300">{displayTitle}</span>
+                    <span className={evt.status === "done" ? "text-green-400 text-[10px]" : "text-red-400 text-[10px]"}>{evt.status}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-[11px] text-gray-400">
+                    <span>{evt.player_white || "Player"} vs {evt.player_black || "Opponent"}</span>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleManualRenameEvent(evt.id, evt.title); }}
+                        className="bg-gray-800 hover:bg-gray-700 text-gray-300 px-1.5 py-0.5 rounded text-[10px] border border-gray-600"
+                        title="Rename event title manually"
+                      >
+                        ✏️ Edit
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleAutoNameEvent(evt.id); }}
+                        className="bg-purple-900/80 hover:bg-purple-800 text-purple-200 px-1.5 py-0.5 rounded text-[10px] border border-purple-600"
+                        title="Auto-generate title using AI LLM Mentor"
+                      >
+                        🪄 AI
+                      </button>
+                    </div>
+                  </div>
                 </div>
-                <span className="text-[11px] text-gray-400">{evt.player_white} vs {evt.player_black}</span>
-              </button>
-            ))}
+              );
+            })}
           </div>
 
           {/* DAG Replay Inspector */}
           <div className="md:col-span-2 bg-gray-800 border border-gray-700 p-4 rounded flex flex-col gap-4">
-            <div className="flex justify-between items-center border-b border-gray-700 pb-2">
-              <h3 className="text-base font-bold text-white">
-                {dagData ? `Event DAG: ${dagData.event.category} (${dagData.node_count} nodes)` : "Select an Event to inspect DAG"}
-              </h3>
-              {activeProfile?.is_qa && (
-                <button
-                  onClick={() => setShowDebugOverlay((v) => !v)}
-                  className="bg-yellow-700 hover:bg-yellow-600 text-white text-xs px-2.5 py-1 rounded"
-                >
-                  {showDebugOverlay ? "Hide QA Inspector" : "🧪 Show QA Inspector"}
-                </button>
+            <div className="flex flex-wrap justify-between items-center border-b border-gray-700 pb-2 gap-2">
+              <div>
+                <h3 className="text-base font-bold text-white flex items-center gap-2">
+                  {dagData ? (
+                    <>
+                      <span>{dagData.event.title || `Event DAG: ${dagData.event.category}`}</span>
+                      <span className="text-xs text-gray-400 font-normal">({dagData.node_count} nodes)</span>
+                    </>
+                  ) : (
+                    "Select an Event to inspect DAG"
+                  )}
+                </h3>
+              </div>
+              {dagData && (
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => handleManualRenameEvent(dagData.event.id, dagData.event.title)}
+                    className="bg-gray-700 hover:bg-gray-600 text-white text-xs px-2 py-1 rounded flex items-center gap-1"
+                  >
+                    ✏️ Rename Session
+                  </button>
+                  <button
+                    onClick={() => handleAutoNameEvent(dagData.event.id)}
+                    className="bg-purple-800 hover:bg-purple-700 text-white text-xs px-2 py-1 rounded flex items-center gap-1"
+                  >
+                    🪄 AI Auto-Name
+                  </button>
+                  {activeProfile?.is_qa && (
+                    <button
+                      onClick={() => setShowDebugOverlay((v) => !v)}
+                      className="bg-yellow-700 hover:bg-yellow-600 text-white text-xs px-2.5 py-1 rounded"
+                    >
+                      {showDebugOverlay ? "Hide QA Inspector" : "🧪 Show QA Inspector"}
+                    </button>
+                  )}
+                </div>
               )}
             </div>
 

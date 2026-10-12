@@ -11,11 +11,9 @@ from app.services.mentor_classifier_service import mentor_classifier_service
 logger = logging.getLogger("analysis_worker")
 
 
-def process_pending_nodes(batch_size: int = 50) -> int:
+def process_pending_nodes(batch_size: int = 50, run_stockfish: bool = True, run_mentor: bool = True) -> int:
     """
-    Processes un-analyzed DAG nodes with priority queuing:
-    Priority 1: Large eval deltas / leaf terminations
-    Priority 2: Active QA / User recent nodes
+    Processes un-analyzed DAG nodes with selective engine analysis (Stockfish and/or Mentor).
     """
     db: Session = SessionLocal()
     try:
@@ -51,7 +49,11 @@ def process_pending_nodes(batch_size: int = 50) -> int:
                     fen=node.fen,
                     parent_fen=parent_fen,
                     move_index=node.move_index,
-                    player_color=player_color
+                    player_color=player_color,
+                    run_stockfish=run_stockfish,
+                    run_mentor=run_mentor,
+                    current_stockfish_eval=analysis.stockfish_eval,
+                    current_eval_delta=analysis.eval_delta,
                 )
 
                 analysis.stockfish_eval = result["stockfish_eval"]

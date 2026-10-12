@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 from sqlalchemy.orm import Session, selectinload
 
 from app.database import get_db
@@ -9,10 +10,19 @@ from app.models.profile import Profile
 from app.schemas.event import EventCreate, EventRead, EventUpdate
 from app.schemas.dag_node import DAGNodeRead, MoveRecordCreate, UndoRequest
 from app.services.db_helpers import get_or_404
+from app.services.analysis_worker import process_pending_nodes
+from app.services.mentor_classifier_service import mentor_classifier_service
 
 router = APIRouter(prefix="/events", tags=["events"])
 
 DEFAULT_INITIAL_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+
+
+class SelectiveAnalysisRequest(BaseModel):
+    run_stockfish: bool = True
+    run_mentor: bool = True
+    batch_size: int = 50
+    profile_id: str | None = None
 
 
 @router.get("", response_model=list[EventRead])
@@ -256,6 +266,7 @@ def get_event_dag(event_id: str, db: Session = Depends(get_db)):
             "id": event.id,
             "profile_id": event.profile_id,
             "event_class": event.event_class,
+            "title": event.title,
             "category": event.category,
             "goal_type": event.goal_type,
             "goal_description": event.goal_description,
@@ -275,3 +286,43 @@ def get_event_dag(event_id: str, db: Session = Depends(get_db)):
         "leaf_hash": leaf_hash,
         "nodes": nodes,
     }
+
+
+@router.post("/run-selective-analysis")
+def run_selective_analysis(body: SelectiveAnalysisRequest, db: Session = Depends(get_db)):
+    if not body.run_stockfish and not body.run_mentor:
+        raise HTTPException(status_code=400, detail="At least one engine (Stockfish or Mentor) must be selected")
+    
+    processed_count = process_pending_nodes(
+        batch_size=body.batch_size,
+        run_stockfish=body.run_stockfish,
+        run_mentor=body.run_mentor
+    )
+    return {
+        "status": "success",
+        "processed_count": processed_count,
+        "run_stockfish": body.run_stockfish,
+        "run_mentor": body.run_mentor
+    }
+
+
+@router.post("/{event_id}/auto-name", response_model=EventRead)
+def auto_name_event(event_id: str, db: Session = Depends(get_db)):
+    event = get_or_404(db, Event, event_id)
+    nodes = (
+        db.query(DAGNode)
+        .filter(DAGNode.event_id == event_id)
+        .order_by(DAGNode.move_index.asc())
+        .all()
+    )
+    moves_san = [node.move_san for node in nodes if node.move_san]
+    generated_title = mentor_classifier_service.generate_event_title(
+        moves_san=moves_san,
+        player_white=event.player_white,
+        player_black=event.player_black,
+        result_score=event.result_score or 1.0
+    )
+    event.title = generated_title
+    db.commit()
+    db.refresh(event)
+    return event
